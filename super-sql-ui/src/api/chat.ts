@@ -14,7 +14,7 @@ export function fetchChatProcess<T = any>(
     const data = params.data;
 
     return post<T>({
-        url: 'super/chat',
+        url: '/api/aibi/home/see/oucAiChat/with-knowledge',
         data,
         signal: params.signal,
         onDownloadProgress: params.onDownloadProgress,
