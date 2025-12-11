@@ -8,10 +8,24 @@ NProgress.configure({showSpinner: false}); // NProgress Configuration
 const router = createRouter({
     history: createWebHistory(),
     routes: [
-        // {
-        //     path: '/',
-        //     redirect: 'login',
-        // },
+        {
+            path: '/',
+            name: 'welcome',
+            component: () => import("@/layout/welcome-layout.vue"),
+            meta: {
+                requiresAuth: false,
+            },
+            children: [
+                {
+                    path: '',
+                    name: 'welcome-content',
+                    component: () => import("@/views/welcome/index.vue"),
+                    meta: {
+                        requiresAuth: false,
+                    },
+                }
+            ]
+        },
         // {
         //     path: '/login',
         //     name: 'login',
@@ -56,6 +70,3 @@ const router = createRouter({
 //     setupUserLoginInfoGuard(router);
 // }
 export default router;
-
-
-

@@ -15,7 +15,22 @@ var service = axios.create({
 //请求拦截器
 service.interceptors.request.use((config: any) => {
     // 每次发送请求之前判断是否存在token，如果存在，则统一在http请求的header都加上token，不用每次请求都手动添加了
-    // const token = getToken();
+     const userInfoStr = localStorage.getItem('userInfo');
+     if (userInfoStr) {
+      try {
+        const userInfo = JSON.parse(userInfoStr);
+        const token = userInfo?.userToken?.token;
+
+        if (token) {
+          config.headers = config.headers || {};
+          config.headers['token'] = token;
+          // 如果后端不是 Bearer，直接 token 也可以
+          // config.headers['token'] = token;
+        }
+      } catch (e) {
+        console.warn('userInfo JSON 解析失败', e);
+      }
+    }
     // console.log('token',token)
     // token && (config.headers.satoken = token)
     //若请求方式为post，则将data参数转为JSON字符串
@@ -40,7 +55,6 @@ service.interceptors.response.use((response) => {
         // clearToken();
         // window.location.reload();
     }
-    console.log('响应成功');
     return response.data;
 }, (error) => {
     console.log(error)

@@ -1,0 +1,333 @@
+<template>
+  <a-layout-sider 
+    v-model:collapsed="collapsed" 
+    :trigger="null" 
+    collapsible
+    :width="240"
+    :style="{ background: '#fff', boxShadow: '2px 0 8px rgba(0,0,0,0.1)' }"
+  >
+    <div class="sidebar-header">
+      <div class="logo-section">
+        <img class="logo" src="@/assets/images/logo.png" alt="SuperSQL"/>
+        <span v-if="!collapsed" class="logo-text">SuperSQL</span>
+      </div>
+    </div>
+
+    <div class="sidebar-content">
+      <!-- 新建对话按钮 -->
+      <div class="new-chat-section">
+        <a-button 
+          type="primary" 
+          size="large" 
+          block 
+          @click="handleNewChat"
+          :style="{ marginBottom: '16px' }"
+        >
+          <template #icon>
+            <plus-outlined />
+          </template>
+          <span v-if="!collapsed">新建对话</span>
+        </a-button>
+      </div>
+
+      <!-- 历史对话折叠菜单 -->
+       <!-- @change="handleCollapseChange" -->
+      <a-collapse 
+        v-model:activeKey="activeKeys" 
+        :bordered="false"
+        :expand-icon-position="'end'"
+        class="sidebar-collapse"
+      >
+        <a-collapse-panel key="history" :header="'历史对话'" :show-arrow="!collapsed">
+          <div class="history-list">
+            <div v-if="loading.history" class="loading-state">
+              <loading-outlined spin />
+              <span>加载中...</span>
+            </div>
+            <div 
+              v-else
+              v-for="chat in chatHistory" 
+              :key="chat.id"
+              class="history-item"
+              :class="{ active: activeChatId === chat.id }"
+              @click="handleSelectChat(chat.id)"
+            >
+              <span class="history-title">{{ chat.description }}</span>
+              <span class="history-time">{{ dayjs(chat.createTime).format('YYYY-MM-DD HH:mm:ss') }}</span>
+            </div>
+            <div v-if="!loading.history && chatHistory.length === 0" class="empty-history">
+              暂无历史对话
+            </div>
+          </div>
+        </a-collapse-panel>
+
+        <!-- 数据洞察折叠菜单 -->
+        <a-collapse-panel key="insight" :header="'数据洞察'" :show-arrow="!collapsed">
+          <div class="insight-list">
+            <div v-if="loading.insight" class="loading-state">
+              <loading-outlined spin />
+              <span>加载中...</span>
+            </div>
+            <div 
+              v-else
+              v-for="insight in insightList" 
+              :key="insight.id"
+              class="insight-item"
+              @click="handleSelectInsight(insight.id)"
+            >
+              <bar-chart-outlined />
+              <span class="insight-title">{{ insight.requestChange }}</span>
+            </div>
+            <div v-if="!loading.insight && insightList.length === 0" class="empty-insight">
+              暂无数据洞察
+            </div>
+          </div>
+        </a-collapse-panel>
+      </a-collapse>
+    </div>
+
+    <!-- 折叠按钮 -->
+    <!-- <div class="sidebar-footer">
+      <a-button 
+        type="text" 
+        @click="toggleCollapse"
+        :style="{ width: '100%', border: 'none' }"
+      >
+        <template #icon>
+          <menu-fold-outlined v-if="!collapsed" />
+          <menu-unfold-outlined v-else />
+        </template>
+        <span v-if="!collapsed">收起菜单</span>
+      </a-button>
+    </div> -->
+  </a-layout-sider>
+</template>
+
+<script lang="ts" setup>
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { 
+  PlusOutlined, 
+  BarChartOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  LoadingOutlined
+} from '@ant-design/icons-vue'
+import dayjs from 'dayjs'
+import { ChatHistoryParams, fetchChatHistory, type ChatHistoryItem, type ChatHistoryResponse } from '@/api/chatHistory'
+import { fetchInsightList, type InsightItem, type InsightResponse } from '@/api/insight'
+
+// 类型定义 - 使用API接口的类型
+
+const router = useRouter()
+
+const collapsed = ref(false)
+const activeKeys = ref<string[]>(['history', 'insight'])
+const activeChatId = ref<string | null>(null)
+const loading = ref({
+  history: false,
+  insight: false
+})
+const chatHistoryParam = ref<ChatHistoryParams>({
+  oucAiAppAlias: 'lnlnjyggfwpt_ai_app',
+  pageNum: '1',
+  pageSize: '10'
+})
+const insightParam = ref({
+  pageNum: '1',
+  pageSize: '10'
+})
+
+// 响应式数据
+const chatHistory = ref<ChatHistoryItem[]>([])
+const insightList = ref<InsightItem[]>([])
+
+// 数据获取函数
+const loadChatHistory = async (): Promise<void> => {
+  loading.value.history = true
+  try {
+    const res = await fetchChatHistory(chatHistoryParam.value)
+    chatHistory.value.push(...(res.content || []))
+    // chatHistory.value= [...chatHistory.value, ...(res.content || [])]
+  } catch (error) {
+    console.error('获取历史对话失败:', error)
+  } finally {
+    loading.value.history = false
+  }
+}
+
+const loadInsightList = async (): Promise<void> => {
+  loading.value.insight = true
+  try {
+    const res = await fetchInsightList(insightParam.value);
+    insightList.value.push(...(res.content || []))
+  } catch (error) {
+    console.error('获取数据洞察失败:', error)
+  } finally {
+    loading.value.insight = false
+  }
+}
+
+// 初始化数据
+onMounted(() => {
+  loadChatHistory()
+  loadInsightList()
+})
+
+// 折叠面板变化事件
+const handleCollapseChange = (keys: string[]): void => {
+  // 当面板展开时加载对应数据
+  if (keys.includes('history') && chatHistory.value.length === 0) {
+    loadChatHistory()
+  }
+  if (keys.includes('insight') && insightList.value.length === 0) {
+    loadInsightList()
+  }
+}
+
+const handleNewChat = async (): Promise<void> => {
+  try {
+    // 直接导航到聊天页面，不添加新的对话到列表
+    activeChatId.value = null
+    router.push('/chat')
+  } catch (error) {
+    console.error('创建新对话失败:', error)
+  }
+}
+
+const handleSelectChat = (chatId: string): void => {
+  activeChatId.value = chatId
+  router.push('/chat')
+}
+
+const handleSelectInsight = (insightId: string): void => {
+  router.push('/knowledge')
+}
+
+const toggleCollapse = (): void => {
+  collapsed.value = !collapsed.value
+}
+</script>
+
+<style lang="less" scoped>
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+}
+
+.logo-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1890ff;
+}
+
+.sidebar-content {
+  flex: 1;
+  padding: 0 16px;
+  overflow-y: auto;
+}
+
+.new-chat-section {
+  margin-bottom: 16px;
+}
+
+.sidebar-collapse {
+  background: transparent;
+  
+  :deep(.ant-collapse-item) {
+    border-bottom: none;
+    
+    .ant-collapse-header {
+      padding: 12px 0 !important;
+      font-weight: 500;
+    }
+    
+    .ant-collapse-content-box {
+      padding: 0 !important;
+    }
+  }
+}
+
+.history-list, .insight-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.history-item, .insight-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+  
+  &:hover {
+    background: #f5f5f5;
+  }
+  
+  &.active {
+    background: #e6f7ff;
+    color: #1890ff;
+  }
+}
+
+.history-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.history-title {
+  font-size: 14px;
+  flex: 1;
+}
+
+.history-time {
+  font-size: 12px;
+  color: #999;
+}
+
+.insight-title {
+  font-size: 14px;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: #999;
+  font-size: 14px;
+}
+
+.empty-history, .empty-insight {
+  text-align: center;
+  color: #999;
+  font-size: 12px;
+  padding: 16px;
+}
+
+.sidebar-footer {
+  border-top: 1px solid #f0f0f0;
+  padding: 8px;
+}
+
+:deep(.ant-layout-sider-children) {
+  display: flex;
+  flex-direction: column;
+}
+</style>

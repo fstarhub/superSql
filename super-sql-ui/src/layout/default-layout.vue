@@ -1,6 +1,10 @@
 <template>
   <a-layout>
-    <a-layout  :style="{ background: colorConfirm }">
+    <!-- 左侧菜单栏 -->
+    <Sidebar />
+    
+    <!-- 右侧内容区域 -->
+    <a-layout :style="{ background: colorConfirm }">
       <div class="width-000">
         <a-layout-header
           :style="{ background: '#ffffff' ,display:'flex'}"
@@ -23,6 +27,7 @@ import { ref} from 'vue'
 import Footer from '@/components/footer/index.vue'
 import Menu from '@/components/menu/index.vue'
 import Header from '@/components/header/index.vue'
+import Sidebar from '@/components/sidebar/index.vue'
 import PageLayout from '@/layout/page-layout.vue'
 import { useRouter } from 'vue-router'
 const router = useRouter()

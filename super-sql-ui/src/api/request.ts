@@ -16,34 +16,22 @@ export interface HttpOption {
     afterRequest?: () => void
 }
 
-export interface Response<T = any> {
-    data: T
-    message: string | null
-    status: string
-    code: number
+export type Response<T> = T & {
+    message?: string | null
+    status?: string
 }
 
 function http<T = any>(
     { url, data, method, headers, onDownloadProgress, signal, beforeRequest, afterRequest }: HttpOption,
 ) {
     const successHandler = (res: AxiosResponse<Response<T>>) => {
-        // 如果响应是字符串类型，直接返回
-        if (typeof res.data === 'string')
-            return res.data
-        
-        // 如果响应是对象，检查状态码，但不要因为状态码不是20000就拒绝
-        // 因为服务器可能返回其他成功的状态码
-        if (res.data && res.data.code) {
-            // 记录状态码但不拒绝，让调用方处理具体逻辑
-            console.log('响应状态码:', res.data.code)
-        }
-        
         return res.data
     }
 
     const failHandler = (error: Response<Error>) => {
         afterRequest?.()
         console.log('error info',error)
+        throw error
     }
 
     beforeRequest?.()
@@ -59,7 +47,7 @@ function http<T = any>(
 
 export function get<T = any>(
     { url, data, method = 'GET', onDownloadProgress, signal, beforeRequest, afterRequest }: HttpOption,
-): Promise<Response<T> | void> {
+): Promise<Response<T>> {
     return http<T>({
         url,
         method,
@@ -73,7 +61,7 @@ export function get<T = any>(
 
 export function post<T = any>(
     { url, data, method = 'POST', headers, onDownloadProgress, signal, beforeRequest, afterRequest }: HttpOption,
-): Promise<Response<T> | void> {
+): Promise<Response<T>> {
     return http<T>({
         url,
         method,
@@ -86,4 +74,7 @@ export function post<T = any>(
     })
 }
 
-export default post
+export default {
+    get,
+    post,
+}

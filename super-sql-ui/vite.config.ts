@@ -15,6 +15,9 @@ export default({command,mode}:any) => {
     },
     plugins: [vue()],
     server: {
+      watch: {
+        usePolling: true,
+      },
       host: true,
       port: 5173,        // 端口可改，比如 3000
       open: false,        // 自动打开浏览器
@@ -26,6 +29,7 @@ export default({command,mode}:any) => {
           changeOrigin: true,
           secure: false,
           ws: true,
+          // 移除/api前缀，因为目标服务器不需要这个前缀
           rewrite: (path) => path.replace(/^\/api/, ''),
         }
       }

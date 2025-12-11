@@ -1,4 +1,4 @@
-import post from "@/api/request";
+import {post} from "@/api/request";
 import {AxiosProgressEvent, GenericAbortSignal} from "axios";
 
 export function fetchChatProcess<T = any>(
