@@ -26,11 +26,37 @@ export interface InsightResponse {
     totalElements: string;
 }
 
+export interface InsightDetail {
+    id: string;
+    chat: any;
+    createdDate: number;
+    data: any;
+    lastModifiedDate: number;
+    orgId: string;
+    orgPath: string;
+    requestChange: string;
+    sqlText: string;
+    content?: string;
+}
+
+export interface InsightDetailParams {
+    id: string;
+}
+
 export function fetchInsightList(
     params: InsightParams
 ) {
     return get<InsightResponse>({
         url: '/api/aibi/home/see/text2Sql/insight/page',
+        data: params || {}
+    });
+}
+
+export function fetchInsightDetail(
+    params: InsightDetailParams
+) {
+    return get<InsightDetail>({
+        url: '/api/aibi/home/see/text2Sql/insight/detail',
         data: params || {}
     });
 }

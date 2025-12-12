@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {SendOutlined, UserOutlined, CopyOutlined, EyeOutlined} from "@ant-design/icons-vue";
 import {nextTick, onMounted, ref, onBeforeUnmount} from "vue";
+import { useRouter } from "vue-router";
 import {fetchChatProcess} from "@/api/chat.ts";
 import {useScroll} from "@/util/useScroll.ts";
 import MarkdownIt from 'markdown-it'
@@ -8,7 +9,6 @@ import mdKatex from '@traptitech/markdown-it-katex'
 import hljs from 'highlight.js';
 import "highlight.js/styles/vs2015.css";
 import { message as antMessage, Modal } from 'ant-design-vue';
-import { eventBus, EVENTS } from '@/util/eventBus'
 
 const {scrollRef, scrollToBottom, scrollToBottomIfAtBottom} = useScroll()
 
@@ -17,8 +17,6 @@ const blockIndex=ref(0)
 const filterText = ref<string>()
 const isLoading = ref(false) // 加载状态
 const chatId = ref<string>('') // 对话ID
-const insightModalVisible = ref(false) // 洞察模态框显示状态
-const currentInsightContent = ref('') // 当前洞察内容
 const showWelcomeMessage = ref(true) // 控制欢迎语显示状态
 let controller = new AbortController()
 
@@ -71,40 +69,6 @@ const copyToClipboard = async (content: string) => {
   }
 }
 
-// 打开洞察模态框
-const openInsightModal = (content: string) => {
-  currentInsightContent.value = content
-  insightModalVisible.value = true
-}
-
-// 关闭洞察模态框
-const closeInsightModal = () => {
-  insightModalVisible.value = false
-  currentInsightContent.value = ''
-}
-
-// 监听事件总线
-onMounted(() => {
-  // 监听打开洞察模态框事件
-  eventBus.on(EVENTS.OPEN_INSIGHT_MODAL, (payload) => {
-    if (payload && payload.content) {
-      openInsightModal(payload.content)
-    }
-  })
-  
-  // 监听关闭洞察模态框事件
-  eventBus.on(EVENTS.CLOSE_INSIGHT_MODAL, () => {
-    closeInsightModal()
-  })
-  
-})
-
-// 组件卸载时移除事件监听
-onBeforeUnmount(() => {
-  eventBus.off(EVENTS.OPEN_INSIGHT_MODAL)
-  eventBus.off(EVENTS.CLOSE_INSIGHT_MODAL)
-})
-
 // 检查是否有图表数据
 const hasChartData = (content: string) => {
   // 这里可以添加更复杂的逻辑来检测是否有可图表化的数据
@@ -119,19 +83,25 @@ const hasChartData = (content: string) => {
   return hasDataPatterns.some(pattern => pattern.test(content))
 }
 
-// 暴露洞察模态框相关方法给父组件调用
-defineExpose({
-  openInsightModal,
-  closeInsightModal,
-  insightModalVisible,
-  currentInsightContent
-})
+
 
 onMounted(()=> {
   if (showWelcomeMessage.value) {
     // 欢迎语现在通过模板静态显示
   }
 })
+
+const router = useRouter()
+
+const handleInsightClick = (content: string): void => {
+  // 跳转到洞察详情页面，将内容作为参数传递
+  router.push({
+    path: '/home/insight',
+    query: {
+      content: encodeURIComponent(content)
+    }
+  })
+}
 
 const handleEnter = (e: { preventDefault: () => void; }) => {
   e.preventDefault() // 防止默认的表单提交行为
@@ -400,7 +370,7 @@ const send = async () => {
                    <a-button 
                      type="text" 
                      size="small" 
-                     @click="openInsightModal(item.content)"
+                     @click="handleInsightClick(item.content)"
                      class="action-btn"
                    >
                      <EyeOutlined />
@@ -449,30 +419,6 @@ const send = async () => {
 
       </div>
 
-      <!-- 洞察模态框 -->
-      <a-modal
-        v-model:visible="insightModalVisible"
-        title="数据洞察"
-        width="80%"
-        :footer="null"
-        @cancel="closeInsightModal"
-        class="insight-modal"
-      >
-        <div class="insight-content">
-          <div class="contentRow">
-            <div class="text-content" v-html="getMdiText(currentInsightContent)"></div>
-            <div class="chart-section">
-              <div v-if="hasChartData(currentInsightContent)">
-                <div class="tableRow">数据可视化</div>
-                <div class="chartRow"></div>
-              </div>
-              <div class="no-chart-data" v-else>
-                <p>当前内容暂无可视化数据</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </a-modal>
 
       <div class="send-area">
 

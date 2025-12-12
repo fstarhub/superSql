@@ -40,7 +40,7 @@
       >
         <a-collapse-panel key="history" :header="'历史对话'" :show-arrow="!collapsed">
           <div class="history-list">
-            <div v-if="loading.history" class="loading-state">
+            <div v-if="loading.history && !chatHistory.length" class="loading-state">
               <loading-outlined spin />
               <span>加载中...</span>
             </div>
@@ -58,13 +58,28 @@
             <div v-if="!loading.history && chatHistory.length === 0" class="empty-history">
               暂无历史对话
             </div>
+            <div v-if="hasMoreHistory && chatHistory.length > 0" class="load-more-section">
+              <a-button 
+                type="link" 
+                size="small" 
+                @click="loadMoreHistory"
+                :loading="loading.history"
+                :disabled="loading.history"
+                class="load-more-btn"
+              >
+                {{ loading.history ? '加载中...' : '加载更多' }}
+              </a-button>
+            </div>
+            <div v-if="!hasMoreHistory && chatHistory.length > 0" class="no-more-data">
+              <span>没有更多数据了</span>
+            </div>
           </div>
         </a-collapse-panel>
 
         <!-- 数据洞察折叠菜单 -->
         <a-collapse-panel key="insight" :header="'数据洞察'" :show-arrow="!collapsed">
           <div class="insight-list">
-            <div v-if="loading.insight" class="loading-state">
+            <div v-if="loading.insight && !insightList.length" class="loading-state">
               <loading-outlined spin />
               <span>加载中...</span>
             </div>
@@ -80,6 +95,21 @@
             </div>
             <div v-if="!loading.insight && insightList.length === 0" class="empty-insight">
               暂无数据洞察
+            </div>
+            <div v-if="hasMoreInsight && insightList.length > 0" class="load-more-section">
+              <a-button 
+                type="link" 
+                size="small" 
+                @click="loadMoreInsight"
+                :loading="loading.insight"
+                :disabled="loading.insight"
+                class="load-more-btn"
+              >
+                {{ loading.insight ? '加载中...' : '加载更多' }}
+              </a-button>
+            </div>
+            <div v-if="!hasMoreInsight && insightList.length > 0" class="no-more-data">
+              <span>没有更多数据了</span>
             </div>
           </div>
         </a-collapse-panel>
@@ -116,7 +146,6 @@ import {
 import dayjs from 'dayjs'
 import { ChatHistoryParams, fetchChatHistory, type ChatHistoryItem, type ChatHistoryResponse } from '@/api/chatHistory'
 import { fetchInsightList, type InsightItem, type InsightResponse } from '@/api/insight'
-import { eventBus, EVENTS } from '@/util/eventBus'
 
 // 类型定义 - 使用API接口的类型
 const router = useRouter()
@@ -143,12 +172,32 @@ const insightParam = ref({
 const chatHistory = ref<ChatHistoryItem[]>([])
 const insightList = ref<InsightItem[]>([])
 
+// 分页相关变量
+const hasMoreHistory = ref(true)
+const hasMoreInsight = ref(true)
+
 // 数据获取函数
-const loadChatHistory = async (): Promise<void> => {
+const loadChatHistory = async (loadMore = false): Promise<void> => {
+  if (loading.value.history || !hasMoreHistory.value) return
+  
   loading.value.history = true
   try {
     const res = await fetchChatHistory(chatHistoryParam.value)
-    chatHistory.value.push(...(res.content || []))
+    const newItems = res.content || []
+    
+    if (loadMore) {
+      chatHistory.value.push(...newItems)
+    } else {
+      chatHistory.value = newItems
+    }
+    
+    // 判断是否还有更多数据
+    hasMoreHistory.value = newItems.length === parseInt(chatHistoryParam.value.pageSize)
+    
+    // 如果有更多数据，更新页码
+    if (hasMoreHistory.value) {
+      chatHistoryParam.value.pageNum = (parseInt(chatHistoryParam.value.pageNum) + 1).toString()
+    }
   } catch (error) {
     console.error('获取历史对话失败:', error)
   } finally {
@@ -156,15 +205,44 @@ const loadChatHistory = async (): Promise<void> => {
   }
 }
 
-const loadInsightList = async (): Promise<void> => {
+const loadInsightList = async (loadMore = false): Promise<void> => {
+  if (loading.value.insight || !hasMoreInsight.value) return
+  
   loading.value.insight = true
   try {
     const res = await fetchInsightList(insightParam.value);
-    insightList.value.push(...(res.content || []))
+    const newItems = res.content || []
+    
+    if (loadMore) {
+      insightList.value.push(...newItems)
+    } else {
+      insightList.value = newItems
+    }
+    
+    // 判断是否还有更多数据
+    hasMoreInsight.value = newItems.length === parseInt(insightParam.value.pageSize)
+    
+    // 如果有更多数据，更新页码
+    if (hasMoreInsight.value) {
+      insightParam.value.pageNum = (parseInt(insightParam.value.pageNum) + 1).toString()
+    }
   } catch (error) {
     console.error('获取数据洞察失败:', error)
   } finally {
     loading.value.insight = false
+  }
+}
+
+// 加载更多函数
+const loadMoreHistory = (): void => {
+  if (hasMoreHistory.value && !loading.value.history) {
+    loadChatHistory(true)
+  }
+}
+
+const loadMoreInsight = (): void => {
+  if (hasMoreInsight.value && !loading.value.insight) {
+    loadInsightList(true)
   }
 }
 
@@ -210,11 +288,12 @@ const handleSelectInsight = (insightId: string): void => {
   // 查找对应的洞察数据
   const insight = insightList.value.find(item => item.id === insightId)
   if (insight) {
-    // 使用事件总线触发打开洞察模态框事件
-    eventBus.emit(EVENTS.OPEN_INSIGHT_MODAL, {
-      id: insight.id,
-      content: insight.requestChange || insight.sqlText || '暂无内容',
-      data: insight.data
+    // 跳转到洞察详情页面
+    router.push({
+      path: '/home/insight',
+      query: { 
+        insightId: insightId
+      }
     })
   }
 }
@@ -222,11 +301,6 @@ const handleSelectInsight = (insightId: string): void => {
 const toggleCollapse = (): void => {
   collapsed.value = !collapsed.value
 }
-
-// 定义组件事件
-const emit = defineEmits<{
-  'open-insight-modal': [payload: { id: string; content: string; data: any }]
-}>()
 </script>
 
 <style lang="less" scoped>
@@ -332,6 +406,36 @@ const emit = defineEmits<{
   padding: 16px;
   color: #999;
   font-size: 14px;
+}
+
+.load-more-section {
+  text-align: center;
+  padding: 8px;
+  border-top: 1px solid #f0f0f0;
+  margin-top: 8px;
+}
+
+.load-more-btn {
+  color: #1890ff;
+  font-size: 12px;
+  
+  &:hover {
+    color: #40a9ff;
+  }
+  
+  &:disabled {
+    color: #d9d9d9;
+    cursor: not-allowed;
+  }
+}
+
+.no-more-data {
+  text-align: center;
+  color: #999;
+  font-size: 12px;
+  padding: 8px;
+  border-top: 1px solid #f0f0f0;
+  margin-top: 8px;
 }
 
 .empty-history, .empty-insight {

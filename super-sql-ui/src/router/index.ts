@@ -58,6 +58,14 @@ const router = createRouter({
                         requiresAuth: false,
                     },
                 },
+                {
+                    path: 'insight',
+                    name: 'insight',
+                    component: () => import("@/views/insight/index.vue"),
+                    meta: {
+                        requiresAuth: false,
+                    },
+                },
             ]
         },
 
