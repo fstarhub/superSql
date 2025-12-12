@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import {SendOutlined, UserOutlined} from "@ant-design/icons-vue";
-import {nextTick, onBeforeMount, onMounted, ref} from "vue";
+import {SendOutlined, UserOutlined, CopyOutlined, EyeOutlined} from "@ant-design/icons-vue";
+import {nextTick, onMounted, ref, onBeforeUnmount} from "vue";
 import {fetchChatProcess} from "@/api/chat.ts";
 import {useScroll} from "@/util/useScroll.ts";
 import MarkdownIt from 'markdown-it'
 import mdKatex from '@traptitech/markdown-it-katex'
 import hljs from 'highlight.js';
 import "highlight.js/styles/vs2015.css";
+import { message as antMessage, Modal } from 'ant-design-vue';
+import { eventBus, EVENTS } from '@/util/eventBus'
 
 const {scrollRef, scrollToBottom, scrollToBottomIfAtBottom} = useScroll()
 
@@ -15,6 +17,9 @@ const blockIndex=ref(0)
 const filterText = ref<string>()
 const isLoading = ref(false) // 加载状态
 const chatId = ref<string>('') // 对话ID
+const insightModalVisible = ref(false) // 洞察模态框显示状态
+const currentInsightContent = ref('') // 当前洞察内容
+const showWelcomeMessage = ref(true) // 控制欢迎语显示状态
 let controller = new AbortController()
 
 const mdi = new MarkdownIt({
@@ -40,23 +45,92 @@ const getMdiText = (value:any) => {
   return mdi.render(value)
 }
 
+// 复制代码段到剪贴板
+const copyToClipboard = async (content: string) => {
+  try {
+    // 提取代码块内容（如果有）
+    const codeMatch = content.match(/```(?:\w+)?\n([\s\S]*?)\n```/)
+    const textToCopy = codeMatch ? codeMatch[1] : content
+    
+    await navigator.clipboard.writeText(textToCopy)
+    antMessage.success('复制成功')
+  } catch (err) {
+    console.error('复制失败:', err)
+    // 降级方案
+    const textArea = document.createElement('textarea')
+    textArea.value = content
+    document.body.appendChild(textArea)
+    textArea.select()
+    try {
+      document.execCommand('copy')
+      antMessage.success('复制成功')
+    } catch (fallbackErr) {
+      antMessage.error('复制失败')
+    }
+    document.body.removeChild(textArea)
+  }
+}
+
+// 打开洞察模态框
+const openInsightModal = (content: string) => {
+  currentInsightContent.value = content
+  insightModalVisible.value = true
+}
+
+// 关闭洞察模态框
+const closeInsightModal = () => {
+  insightModalVisible.value = false
+  currentInsightContent.value = ''
+}
+
+// 监听事件总线
+onMounted(() => {
+  // 监听打开洞察模态框事件
+  eventBus.on(EVENTS.OPEN_INSIGHT_MODAL, (payload) => {
+    if (payload && payload.content) {
+      openInsightModal(payload.content)
+    }
+  })
+  
+  // 监听关闭洞察模态框事件
+  eventBus.on(EVENTS.CLOSE_INSIGHT_MODAL, () => {
+    closeInsightModal()
+  })
+  
+})
+
+// 组件卸载时移除事件监听
+onBeforeUnmount(() => {
+  eventBus.off(EVENTS.OPEN_INSIGHT_MODAL)
+  eventBus.off(EVENTS.CLOSE_INSIGHT_MODAL)
+})
+
+// 检查是否有图表数据
+const hasChartData = (content: string) => {
+  // 这里可以添加更复杂的逻辑来检测是否有可图表化的数据
+  // 例如：检测SQL查询结果、数据表格、统计信息等
+  const hasDataPatterns = [
+    /SELECT.*FROM/i, // SQL查询
+    /\|.*\|/g, // 表格格式
+    /\d+\s*%/g, // 百分比数据
+    /\d+\.?\d*/g // 数字数据
+  ]
+  
+  return hasDataPatterns.some(pattern => pattern.test(content))
+}
+
+// 暴露洞察模态框相关方法给父组件调用
+defineExpose({
+  openInsightModal,
+  closeInsightModal,
+  insightModalVisible,
+  currentInsightContent
+})
 
 onMounted(()=> {
-  const text= "您好，我是SQL智能助手，请问我有什么可以帮您？"
-  text.split("").forEach((item)=>{
-    if(!messages.value[blockIndex.value]){
-      const message={
-        messageType: "ai",
-        content:item
-      }
-      messages.value.push(message)
-    }else {
-      messages.value[blockIndex.value].content += item
-    }
-
-
-  })
-  blockIndex.value = blockIndex.value+1
+  if (showWelcomeMessage.value) {
+    // 欢迎语现在通过模板静态显示
+  }
 })
 
 const handleEnter = (e: { preventDefault: () => void; }) => {
@@ -68,6 +142,11 @@ const send = async () => {
   // 检查是否正在加载或输入为空
   if (isLoading.value || !filterText.value?.trim()) {
     return
+  }
+  
+  // 如果是第一次发送消息，隐藏欢迎语
+  if (showWelcomeMessage.value) {
+    showWelcomeMessage.value = false
   }
   
   // 使用nextTick确保DOM更新完成后再清空输入框
@@ -106,8 +185,6 @@ const send = async () => {
         console.log('responseText为空或undefined，跳过处理')
         return
       }
-      
-      console.log('responseText:', responseText)
       
       try {
         // 处理以"data:"开头的SSE格式响应
@@ -276,8 +353,9 @@ const send = async () => {
     <div class="center-main">
 
       <div class="chat-list" id="scrollRef" ref="scrollRef">
-       <div v-for="(item, index) in messages" :key="index">
-         <div class="ai-message" v-if="item.messageType === 'ai'">
+       <!-- 欢迎语 -->
+       <div v-if="showWelcomeMessage">
+         <div class="ai-message">
            <a-space align="center">
              <a-avatar :size="50" style="background-color: rgba(255,255,255,0) ">
                <template #icon>
@@ -285,7 +363,50 @@ const send = async () => {
                </template>
              </a-avatar>
              <div class="ai-content-container">
+               <div class="ai-content">
+                 您好，我是SQL智能助手，请问我有什么可以帮您？
+               </div>
+             </div>
+           </a-space>
+         </div>
+       </div>
+       
+       <!-- 聊天内容 -->
+       <div v-for="(item, index) in messages" :key="index">
+         <div class="ai-message" v-if="item.messageType === 'ai'">
+           <a-space align="flex-start">
+             <a-avatar :size="50" style="background-color: rgba(255,255,255,0) ">
+               <template #icon>
+                 <img style="width: 48px !important;height: 48px !important;" src="@/assets/images/ai_logo.png">
+               </template>
+             </a-avatar>
+             <div class="ai-content-container">
                <div class="ai-content" v-html="getMdiText(item.content)">
+               </div>
+               <!-- 操作按钮区域 -->
+               <div class="action-buttons" v-if="item.content">
+                 <a-tooltip title="复制代码">
+                   <a-button 
+                     type="text" 
+                     size="small" 
+                     @click="copyToClipboard(item.content)"
+                     class="action-btn"
+                   >
+                     <CopyOutlined />
+                     复制
+                   </a-button>
+                 </a-tooltip>
+                 <a-tooltip title="数据洞察">
+                   <a-button 
+                     type="text" 
+                     size="small" 
+                     @click="openInsightModal(item.content)"
+                     class="action-btn"
+                   >
+                     <EyeOutlined />
+                     洞察
+                   </a-button>
+                 </a-tooltip>
                </div>
                <!-- <div class="message-time" v-if="item.timestamp">
                  {{ item.timestamp }}
@@ -326,11 +447,32 @@ const send = async () => {
          </a-space>
        </div>
 
-
-
-
       </div>
 
+      <!-- 洞察模态框 -->
+      <a-modal
+        v-model:visible="insightModalVisible"
+        title="数据洞察"
+        width="80%"
+        :footer="null"
+        @cancel="closeInsightModal"
+        class="insight-modal"
+      >
+        <div class="insight-content">
+          <div class="contentRow">
+            <div class="text-content" v-html="getMdiText(currentInsightContent)"></div>
+            <div class="chart-section">
+              <div v-if="hasChartData(currentInsightContent)">
+                <div class="tableRow">数据可视化</div>
+                <div class="chartRow"></div>
+              </div>
+              <div class="no-chart-data" v-else>
+                <p>当前内容暂无可视化数据</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a-modal>
 
       <div class="send-area">
 
@@ -391,6 +533,34 @@ const send = async () => {
         img{
           width: 400px !important;
           height: auto !important;
+        }
+      }
+      // 操作按钮样式
+      .action-buttons {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        justify-content: flex-end;
+        .action-btn {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          color: #535bf2;
+          border: 1px solid #d9d9d9;
+          border-radius: 6px;
+          padding: 4px 8px;
+          font-size: 12px;
+          transition: all 0.3s;
+          
+          &:hover {
+            color: #fff;
+            background-color: #535bf2;
+            border-color: #535bf2;
+          }
+          
+          &:active {
+            transform: scale(0.95);
+          }
         }
       }
       .message-id{
@@ -454,6 +624,36 @@ const send = async () => {
     40% {
       transform: scale(1);
       opacity: 1;
+    }
+  }
+}
+
+// 洞察模态框样式
+.insight-modal {
+  .insight-content {
+    padding: 20px;
+    .contentRow {
+      display: flex;
+      gap: 10px;
+      .text-content {
+        width: 50%;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+      }
+      .chart-section {
+        width: 50%;
+      }
+    }
+    
+    .no-chart-data {
+      width: 100%;
+      text-align: center;
+      padding: 40px 20px;
+      color: #999;
+      font-size: 14px;
+      background-color: #f5f5f5;
+      border-radius: 8px;
     }
   }
 }

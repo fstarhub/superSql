@@ -105,7 +105,7 @@
 
 <script lang="ts" setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { 
   PlusOutlined, 
   BarChartOutlined,
@@ -116,10 +116,11 @@ import {
 import dayjs from 'dayjs'
 import { ChatHistoryParams, fetchChatHistory, type ChatHistoryItem, type ChatHistoryResponse } from '@/api/chatHistory'
 import { fetchInsightList, type InsightItem, type InsightResponse } from '@/api/insight'
+import { eventBus, EVENTS } from '@/util/eventBus'
 
 // 类型定义 - 使用API接口的类型
-
 const router = useRouter()
+const route = useRoute()
 
 const collapsed = ref(false)
 const activeKeys = ref<string[]>(['history', 'insight'])
@@ -129,7 +130,7 @@ const loading = ref({
   insight: false
 })
 const chatHistoryParam = ref<ChatHistoryParams>({
-  oucAiAppAlias: 'lnlnjyggfwpt_ai_app',
+  oucAiAppAlias: 'text2Sql_ai_app',
   pageNum: '1',
   pageSize: '10'
 })
@@ -148,7 +149,6 @@ const loadChatHistory = async (): Promise<void> => {
   try {
     const res = await fetchChatHistory(chatHistoryParam.value)
     chatHistory.value.push(...(res.content || []))
-    // chatHistory.value= [...chatHistory.value, ...(res.content || [])]
   } catch (error) {
     console.error('获取历史对话失败:', error)
   } finally {
@@ -197,16 +197,36 @@ const handleNewChat = async (): Promise<void> => {
 
 const handleSelectChat = (chatId: string): void => {
   activeChatId.value = chatId
-  router.push('/chat')
+  router.push({
+    path: '/chat',
+    query: { 
+      chatId: chatId,
+      from: 'history'
+    }
+  })
 }
 
 const handleSelectInsight = (insightId: string): void => {
-  router.push('/knowledge')
+  // 查找对应的洞察数据
+  const insight = insightList.value.find(item => item.id === insightId)
+  if (insight) {
+    // 使用事件总线触发打开洞察模态框事件
+    eventBus.emit(EVENTS.OPEN_INSIGHT_MODAL, {
+      id: insight.id,
+      content: insight.requestChange || insight.sqlText || '暂无内容',
+      data: insight.data
+    })
+  }
 }
 
 const toggleCollapse = (): void => {
   collapsed.value = !collapsed.value
 }
+
+// 定义组件事件
+const emit = defineEmits<{
+  'open-insight-modal': [payload: { id: string; content: string; data: any }]
+}>()
 </script>
 
 <style lang="less" scoped>

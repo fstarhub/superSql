@@ -13,7 +13,7 @@
           <Menu/>
           <Header/>
         </a-layout-header>
-        <a-layout-content class="main-other'">
+        <a-layout-content class="main-other">
           <PageLayout />
         </a-layout-content>
         <Footer />
@@ -89,8 +89,8 @@ const rightSideFun = (val: boolean) => {
   height: 100%;
 }
 .main-other {
-  margin: 16px 16px 16px 16px;
+  margin: 16px 16px 0 16px;
   overflow: auto;
-  height: 100vh;
+  // height: calc(100% - 110px);
 }
 </style>

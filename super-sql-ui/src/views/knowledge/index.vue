@@ -225,4 +225,3 @@ onMounted(()=>{
 }
 
 </style>
-
