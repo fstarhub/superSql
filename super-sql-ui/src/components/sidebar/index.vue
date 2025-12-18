@@ -146,6 +146,7 @@ import {
 import dayjs from 'dayjs'
 import { ChatHistoryParams, fetchChatHistory, type ChatHistoryItem, type ChatHistoryResponse } from '@/api/chatHistory'
 import { fetchInsightList, type InsightItem, type InsightResponse } from '@/api/insight'
+import { eventBus } from '@/util/eventBus'
 
 // 类型定义 - 使用API接口的类型
 const router = useRouter()
@@ -265,6 +266,9 @@ const handleCollapseChange = (keys: string[]): void => {
 
 const handleNewChat = async (): Promise<void> => {
   try {
+    // 触发新建对话事件
+    eventBus.emit('new-chat')
+    
     // 直接导航到聊天页面，不添加新的对话到列表
     activeChatId.value = null
     router.push('/chat')

@@ -2,13 +2,12 @@
   <div class="insight-detail-container">
     <a-page-header
       class="insight-header"
-      title="数据洞察详情"
-      :sub-title="insightData?.requestChange || '洞察详情'"
+      title="洞察详情"
       @back="handleBack"
     >
-      <template #extra>
+      <!-- <template #extra>
         <a-button @click="handleBack">返回</a-button>
-      </template>
+      </template> -->
     </a-page-header>
 
     <div class="insight-content">
@@ -25,13 +24,13 @@
           <a-card title="数据可视化" class="chart-card">
             <div v-if="hasChartData(insightData?.content)" class="chart-section">
               <div class="chart-placeholder">
-                <bar-chart-outlined class="chart-icon" />
+                <BarChartOutlined class="chart-icon" />
                 <p>数据可视化图表区域</p>
                 <p class="chart-hint">这里可以展示SQL查询结果的可视化图表</p>
               </div>
             </div>
             <div v-else class="no-chart-data">
-              <bar-chart-outlined class="no-data-icon" />
+              <BarChartOutlined class="no-data-icon" />
               <p>当前内容暂无可视化数据</p>
             </div>
           </a-card>
@@ -51,7 +50,27 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { BarChartOutlined } from '@ant-design/icons-vue'
 import { fetchInsightDetail, type InsightDetail } from '@/api/insight'
-import { markdownIt } from '@/utils/markdown'
+import hljs from 'highlight.js'
+import "highlight.js/styles/vs2015.css";
+import MarkdownIt from 'markdown-it';
+
+// 创建MarkdownIt实例并配置hljs高亮
+const mdi = new MarkdownIt({
+  linkify: true,
+  highlight(code, language) {
+    const validLang = !!(language && hljs.getLanguage(language))
+    if (validLang) {
+      const lang = language ?? ''
+      return highlightBlock(hljs.highlight(lang, code, true).value, lang)
+    }
+    return highlightBlock(hljs.highlightAuto(code).value, '')
+  }
+})
+
+// 代码块高亮函数
+function highlightBlock(str:any, lang:any) {
+  return `<pre class="pre-code-box"><div class="pre-code-header"><span class="code-block-header__lang">${lang}</span><span class="code-block-header__copy"></span></div><div class="pre-code"><code class="hljs code-block-body ${lang}"> ${str}</code></div></pre>`
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -73,7 +92,7 @@ const loadInsightDetail = async (insightId: string) => {
 }
 
 // 检查是否有图表数据
-const hasChartData = (content: string) => {
+const hasChartData = (content?: string) => {
   if (!content) return false
   
   const hasDataPatterns = [
@@ -86,10 +105,35 @@ const hasChartData = (content: string) => {
   return hasDataPatterns.some(pattern => pattern.test(content))
 }
 
-// Markdown 渲染
-const getMdiText = (content: string) => {
+// 提取代码块内容
+const extractCodeBlocks = (content?: string) => {
   if (!content) return '暂无内容'
-  return markdownIt.render(content)
+  
+  // 使用正则表达式匹配代码块
+  const codeBlockRegex = /```(?:\w+)?\n([\s\S]*?)```/g
+  const codeBlocks = []
+  let match
+  
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    codeBlocks.push(match[1])
+  }
+  
+  // 如果没有找到代码块，返回原始内容
+  if (codeBlocks.length === 0) {
+    return content
+  }
+  
+  // 将代码块用Markdown代码块格式包装
+  return codeBlocks.map(code => `\`\`\`\n${code}\n\`\`\``).join('\n\n')
+}
+
+// Markdown 渲染
+const getMdiText = (content?: string) => {
+  if (!content) return '暂无内容'
+  
+  // 只渲染代码块内容
+  const codeContent = extractCodeBlocks(content)
+  return mdi.render(codeContent)
 }
 
 // 返回处理
@@ -99,8 +143,8 @@ const handleBack = () => {
 
 // 初始化
 onMounted(() => {
-  const insightId = route.query.insightId as string
-  const content = route.query.content as string
+  const insightId = route.query.insightId as string | undefined
+  const content = route.query.content as string | undefined
   
   if (insightId) {
     // 从侧边栏点击进入，加载洞察详情
@@ -111,7 +155,13 @@ onMounted(() => {
       id: 'chat-content',
       requestChange: '聊天内容洞察',
       content: decodeURIComponent(content),
-      data: null
+      data: null,
+      createdDate: Date.now(),
+      lastModifiedDate: Date.now(),
+      orgId: 'default',
+      orgPath: '/default',
+      sqlText: '123',
+      chat: null
     }
   }
 })
@@ -154,17 +204,25 @@ onMounted(() => {
   line-height: 1.6;
   
   :deep(pre) {
-    background: #f6f8fa;
+    background: #000000 !important;
     padding: 12px;
     border-radius: 6px;
     overflow-x: auto;
+    color: #ffffff !important;
   }
   
   :deep(code) {
-    background: #f6f8fa;
+    background: #000000 !important;
     padding: 2px 4px;
     border-radius: 3px;
     font-family: 'Courier New', monospace;
+    color: #ffffff !important;
+  }
+  
+  /* 覆盖highlight.js样式，保持黑色背景 */
+  :deep(.hljs) {
+    background: #000000 !important;
+    color: #ffffff !important;
   }
 }
 

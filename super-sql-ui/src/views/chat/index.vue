@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import {SendOutlined, UserOutlined, CopyOutlined, EyeOutlined} from "@ant-design/icons-vue";
-import {nextTick, onMounted, ref, onBeforeUnmount} from "vue";
-import { useRouter } from "vue-router";
+import {SendOutlined, UserOutlined, CopyOutlined, EyeOutlined, CloseOutlined} from "@ant-design/icons-vue";
+import {nextTick, onMounted, ref, onBeforeUnmount, watch} from "vue";
+import { useRouter, useRoute } from "vue-router";
 import {fetchChatProcess} from "@/api/chat.ts";
+import {fetchChatRecord} from "@/api/chatRecord.ts";
 import {useScroll} from "@/util/useScroll.ts";
 import MarkdownIt from 'markdown-it'
 import mdKatex from '@traptitech/markdown-it-katex'
 import hljs from 'highlight.js';
 import "highlight.js/styles/vs2015.css";
 import { message as antMessage, Modal } from 'ant-design-vue';
+import { eventBus } from '@/util/eventBus';
 
 const {scrollRef, scrollToBottom, scrollToBottomIfAtBottom} = useScroll()
 
@@ -18,7 +20,10 @@ const filterText = ref<string>()
 const isLoading = ref(false) // 加载状态
 const chatId = ref<string>('') // 对话ID
 const showWelcomeMessage = ref(true) // 控制欢迎语显示状态
+
 let controller = new AbortController()
+
+const route = useRoute()
 
 const mdi = new MarkdownIt({
   linkify: true,
@@ -34,8 +39,6 @@ const mdi = new MarkdownIt({
 mdi.use(mdKatex, { blockClass: 'katexmath-block rounded-md p-[10px]', errorColor: ' #cc0000' })
 
 function highlightBlock(str:any, lang:any) {
-  console.log('str :', str)
-  console.log('lang :',lang)
   return `<pre class="pre-code-box"><div class="pre-code-header"><span class="code-block-header__lang">${lang}</span><span class="code-block-header__copy"></span></div><div class="pre-code"><code class="hljs code-block-body ${lang}"> ${str}</code></div></pre>`
 }
 
@@ -83,9 +86,81 @@ const hasChartData = (content: string) => {
   return hasDataPatterns.some(pattern => pattern.test(content))
 }
 
+// 加载历史对话记录到messages变量
+const loadChatRecords = async () => {
+  if (!chatId.value) return
+  
+  try {
+    const res = await fetchChatRecord({
+      oucAiAppAlias: 'text2Sql_ai_app',
+      chatId: chatId.value,
+      pageNum: '1',
+      pageSize: '20'
+    })
+    // 根据新的API响应结构处理数据
+    const records = res.content || []
+      
+    // 清空当前消息，然后添加历史记录
+    messages.value = []
+    
+    // 将历史记录转换为消息格式并添加到messages中
+    records.forEach(record => {
+      if (record.question) {
+        messages.value.push({
+          messageType: 'your',
+          content: record.question,
+          timestamp: new Date(record.createTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+        })
+      }
+      
+      if (record.answer) {
+        messages.value.push({
+          messageType: 'ai',
+          content: record.answer,
+          timestamp: new Date(record.createTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+        })
+      }
+    })
+    
+    // 隐藏欢迎语，因为现在显示历史记录
+    showWelcomeMessage.value = false
+  } catch (error) {
+    console.error('加载历史对话记录失败:', error)
+    antMessage.error('加载历史对话记录失败')
+  }
+}
 
+// 监听路由参数变化
+watch(() => route.query.chatId, (newChatId) => {
+  if (newChatId && newChatId !== chatId.value) {
+    chatId.value = newChatId as string
+    // 如果是来自历史对话的跳转，加载历史记录
+    if (route.query.from === 'history') {
+      loadChatRecords()
+    }
+  }
+})
+
+// 重置聊天状态
+const resetChat = () => {
+  messages.value = []
+  chatId.value = ''
+  showWelcomeMessage.value = true
+}
 
 onMounted(()=> {
+  // 监听新建对话事件
+  eventBus.on('new-chat', resetChat)
+  
+  // 初始化时检查是否有chatId参数
+  if (route.query.chatId) {
+    chatId.value = route.query.chatId as string
+    // 如果是来自历史对话的跳转，加载历史记录
+    if (route.query.from === 'history') {
+      loadChatRecords()
+    }
+  }
+  
   if (showWelcomeMessage.value) {
     // 欢迎语现在通过模板静态显示
   }
@@ -317,34 +392,27 @@ const send = async () => {
 
 </script>
 
+
 <template>
 
   <a-card class="global-card">
     <div class="center-main">
 
+      <!-- 主聊天区域 -->
       <div class="chat-list" id="scrollRef" ref="scrollRef">
        <!-- 欢迎语 -->
        <div v-if="showWelcomeMessage">
-         <div class="ai-message">
-           <a-space align="center">
-             <a-avatar :size="50" style="background-color: rgba(255,255,255,0) ">
-               <template #icon>
-                 <img style="width: 48px !important;height: 48px !important;" src="@/assets/images/ai_logo.png">
-               </template>
-             </a-avatar>
-             <div class="ai-content-container">
-               <div class="ai-content">
-                 您好，我是SQL智能助手，请问我有什么可以帮您？
-               </div>
-             </div>
-           </a-space>
+         <div class="welcomeClass">
+           <div class="welcomeTitle">
+              您好，我是SQL智能助手，请问有什么可以帮您？
+            </div>
          </div>
        </div>
        
        <!-- 聊天内容 -->
        <div v-for="(item, index) in messages" :key="index">
          <div class="ai-message" v-if="item.messageType === 'ai'">
-           <a-space align="flex-start">
+           <a-space align="start">
              <a-avatar :size="50" style="background-color: rgba(255,255,255,0) ">
                <template #icon>
                  <img style="width: 48px !important;height: 48px !important;" src="@/assets/images/ai_logo.png">
@@ -387,7 +455,7 @@ const send = async () => {
 
          <div class="you-message" v-if="item.messageType === 'your'">
 
-           <a-space align="center">
+           <a-space align="start">
              <div class="you-content" v-html="item.content">
              </div>
 
@@ -419,7 +487,7 @@ const send = async () => {
 
       </div>
 
-
+      <!-- 发送区域 -->
       <div class="send-area">
 
         <a-input @pressEnter="handleEnter" :bordered="false" class="send-input" v-model:value.trim="filterText" placeholder="请输入你的问题" :disabled="isLoading">
@@ -431,6 +499,8 @@ const send = async () => {
         </a-input>
 
       </div>
+
+
 
     </div>
   </a-card>
@@ -461,6 +531,13 @@ const send = async () => {
   padding:0 80px;
   overflow-x: hidden;
   scrollbar-width: none;
+  .welcomeClass {
+    text-align: center;
+    .welcomeTitle {
+      font-size: 26px;
+      font-weight: 500;
+    }
+  }
   .ai-message{
     //float: left;
     margin: 10px 0;
@@ -629,5 +706,35 @@ const send = async () => {
   line-height: 50px;
   border: 1px solid #535bf2;
   border-radius: 6px;
+}
+
+// 主聊天区域样式
+.center-main {
+  position: relative;
+  width: 100%;
+  height: 70vh;
+  overflow: hidden;
+  background-color: #fff;
+  
+  .chat-list {
+    width: 100%;
+    height: calc(100% - 110px);
+    padding: 0 80px;
+    overflow-x: hidden;
+    scrollbar-width: none;
+  }
+  
+  .send-area {
+    width: 100%;
+    position: absolute;
+    bottom: 0;
+    z-index: 99;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 120px;
+    background: linear-gradient(0deg, #fff, hsla(0, 0%, 100%, .8));
+  }
 }
 </style>

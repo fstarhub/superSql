@@ -36,7 +36,7 @@ export interface InsightDetail {
     orgPath: string;
     requestChange: string;
     sqlText: string;
-    content?: string;
+    content: string;
 }
 
 export interface InsightDetailParams {
