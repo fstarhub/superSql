@@ -117,6 +117,7 @@ const loadChatRecords = async () => {
         messages.value.push({
           messageType: 'ai',
           content: record.answer,
+          question: record.question,
           timestamp: new Date(record.createTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
         })
       }
@@ -168,12 +169,38 @@ onMounted(()=> {
 
 const router = useRouter()
 
+// 提取代码块内容
+const extractCodeBlocks = (content?: string) => {
+  if (!content) return ''
+
+  // 使用正则表达式匹配代码块
+  const codeBlockRegex = /```(?:\w+)?\n([\s\S]*?)```/g
+  const codeBlocks = []
+  let match
+
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    codeBlocks.push(match[1])
+  }
+
+  // 如果没有找到代码块，返回原始内容
+  if (codeBlocks.length === 0) {
+    return content
+  }
+
+  // 返回第一个代码块内容（通常是SQL），并去除换行符，同时合并多余空格
+  return codeBlocks[0].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 const handleInsightClick = (content: string): void => {
-  // 跳转到洞察详情页面，将内容作为参数传递
+  // 从内容中提取SQL代码块
+  const sqlContent = extractCodeBlocks(content)
+  
+  // 跳转到洞察详情页面，只传递SQL代码块作为参数
   router.push({
     path: '/home/insight',
     query: {
-      content: encodeURIComponent(content)
+      content: encodeURIComponent(sqlContent),
+      requestChange: ''
     }
   })
 }
@@ -248,7 +275,6 @@ const send = async () => {
         
         // 解析JSON响应
         const responseData = JSON.parse(jsonData)
-        
         // 提取content和id
         if (responseData.data && responseData.data.choices && responseData.data.choices.length > 0) {
           const contentText = responseData.data.choices[0].message.content
@@ -264,6 +290,7 @@ const send = async () => {
             messageType:'ai',
             content: contentText,
             id: messageId,
+            question: inputText,
             timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
           }
           

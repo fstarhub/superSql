@@ -88,7 +88,7 @@
               v-for="insight in insightList" 
               :key="insight.id"
               class="insight-item"
-              @click="handleSelectInsight(insight.id)"
+              @click="handleSelectInsight(insight.sqlText, insight.requestChange)"
             >
               <bar-chart-outlined />
               <span class="insight-title">{{ insight.requestChange }}</span>
@@ -288,18 +288,15 @@ const handleSelectChat = (chatId: string): void => {
   })
 }
 
-const handleSelectInsight = (insightId: string): void => {
-  // 查找对应的洞察数据
-  const insight = insightList.value.find(item => item.id === insightId)
-  if (insight) {
-    // 跳转到洞察详情页面
-    router.push({
-      path: '/home/insight',
-      query: { 
-        insightId: insightId
-      }
-    })
-  }
+const handleSelectInsight = (sqlText: string, requestChange: string): void => {
+  // 跳转到洞察详情页面
+  router.push({
+    path: '/home/insight',
+    query: {
+      content: encodeURIComponent(sqlText),
+      requestChange: encodeURIComponent(requestChange)
+    }
+  })
 }
 
 const toggleCollapse = (): void => {

@@ -15,14 +15,14 @@
         <!-- 左侧内容区域 -->
         <a-col :span="12">
           <a-card title="洞察内容" class="content-card">
-            <div class="text-content" v-html="getMdiText(insightData?.content || '暂无内容')"></div>
+            <div class="text-content" v-html="getMdiText(comeMsg || '暂无内容')"></div>
           </a-card>
         </a-col>
 
         <!-- 右侧图表区域 -->
         <a-col :span="12">
           <a-card title="数据可视化" class="chart-card">
-            <div v-if="hasChartData(insightData?.content)" class="chart-section">
+            <div v-if="hasChartData(comeMsg)" class="chart-section">
               <div class="chart-placeholder">
                 <BarChartOutlined class="chart-icon" />
                 <p>数据可视化图表区域</p>
@@ -75,14 +75,16 @@ function highlightBlock(str:any, lang:any) {
 const route = useRoute()
 const router = useRouter()
 
+const comeMsg = ref<string>('')
 const insightData = ref<InsightDetail | null>(null)
 const loading = ref(false)
 
 // 获取洞察详情
-const loadInsightDetail = async (insightId: string) => {
+const loadInsightDetail = async (msg: string, requestChange: string) => {
   loading.value = true
   try {
-    const res = await fetchInsightDetail({ id: insightId })
+    const res = await fetchInsightDetail({ sqlText: msg, requestChange: requestChange })
+    console.log( '洞察详情:', res)
     insightData.value = res
   } catch (error) {
     console.error('获取洞察详情失败:', error)
@@ -143,26 +145,12 @@ const handleBack = () => {
 
 // 初始化
 onMounted(() => {
-  const insightId = route.query.insightId as string | undefined
   const content = route.query.content as string | undefined
-  
-  if (insightId) {
-    // 从侧边栏点击进入，加载洞察详情
-    loadInsightDetail(insightId)
-  } else if (content) {
-    // 从聊天页面点击进入，直接显示内容
-    insightData.value = {
-      id: 'chat-content',
-      requestChange: '聊天内容洞察',
-      content: decodeURIComponent(content),
-      data: null,
-      createdDate: Date.now(),
-      lastModifiedDate: Date.now(),
-      orgId: 'default',
-      orgPath: '/default',
-      sqlText: '123',
-      chat: null
-    }
+  const requestChange = route.query.requestChange as string | ''
+  if (content) {
+    comeMsg.value = decodeURIComponent(content)
+    const decodedRequestChange = requestChange ? decodeURIComponent(requestChange) : ''
+    loadInsightDetail(comeMsg.value, decodedRequestChange)
   }
 })
 </script>

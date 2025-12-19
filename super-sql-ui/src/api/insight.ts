@@ -1,4 +1,4 @@
-import {get} from "@/api/request";
+import {get, post} from "@/api/request";
 
 export interface InsightItem {
     id: string;
@@ -28,19 +28,19 @@ export interface InsightResponse {
 
 export interface InsightDetail {
     id: string;
-    chat: any;
     createdDate: number;
-    data: any;
     lastModifiedDate: number;
+    data: any;
+    chart: any;
     orgId: string;
     orgPath: string;
     requestChange: string;
     sqlText: string;
-    content: string;
 }
 
 export interface InsightDetailParams {
-    id: string;
+    sqlText: string;
+    requestChange: string;
 }
 
 export function fetchInsightList(
@@ -55,8 +55,8 @@ export function fetchInsightList(
 export function fetchInsightDetail(
     params: InsightDetailParams
 ) {
-    return get<InsightDetail>({
-        url: '/api/aibi/home/see/text2Sql/insight/detail',
+    return post<InsightDetail>({
+        url: '/api/aibi/home/see/text2Sql/insight/create',
         data: params || {}
     });
 }
