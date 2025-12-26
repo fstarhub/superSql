@@ -191,7 +191,7 @@ const extractCodeBlocks = (content?: string) => {
   return codeBlocks[0].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
-const handleInsightClick = (content: string): void => {
+const handleInsightClick = (content: string, question: string): void => {
   // 从内容中提取SQL代码块
   const sqlContent = extractCodeBlocks(content)
   
@@ -200,7 +200,7 @@ const handleInsightClick = (content: string): void => {
     path: '/home/insight',
     query: {
       content: encodeURIComponent(sqlContent),
-      requestChange: ''
+      requestChange: question
     }
   })
 }
@@ -465,7 +465,7 @@ const send = async () => {
                    <a-button 
                      type="text" 
                      size="small" 
-                     @click="handleInsightClick(item.content)"
+                     @click="handleInsightClick(item.content, item.question)"
                      class="action-btn"
                    >
                      <EyeOutlined />

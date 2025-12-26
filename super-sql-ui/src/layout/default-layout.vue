@@ -10,7 +10,7 @@
           :style="{ background: '#ffffff' ,display:'flex'}"
         >
             <img class="logo" src="../assets/images/logo.png" alt=""/>
-          <Menu/>
+          <!-- <Menu/> -->
           <Header/>
         </a-layout-header>
         <a-layout-content class="main-other">

@@ -5,8 +5,6 @@ import {UserOutlined,LoginOutlined,SettingOutlined} from "@ant-design/icons-vue"
 <template>
   <div class="ant-header">
 
-
-
     <a-dropdown :placement="'bottom'">
       <a-avatar>
         <template #icon>

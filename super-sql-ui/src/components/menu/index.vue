@@ -18,11 +18,11 @@ const items = ref([
     label: 'AI 助手',
     title: 'AI 助手',
   },
-  {
-    key: 'knowledge',
-    label: '知识库',
-    title: '知识库',
-  }
+  // {
+  //   key: 'knowledge',
+  //   label: '知识库',
+  //   title: '知识库',
+  // }
 ])
 
 const handSelected = (item :any) => {

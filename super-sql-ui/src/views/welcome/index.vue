@@ -76,14 +76,21 @@ import { MessageOutlined, BarChartOutlined, DatabaseOutlined, AreaChartOutlined 
 import WelcomeLayout from '@/layout/welcome-layout.vue'
 import { useRouter } from 'vue-router'
 import { handleLogin } from '@/api/login'
+import { message } from 'ant-design-vue'
 
 const router = useRouter()
 
-const startChat = () => {
-  handleLogin({ username: 'admin', password: 'Gkbh2021!' }).then((res) => {
+const startChat = async () => {
+  const res = await handleLogin({ username: 'admin', password: 'Gkbh2021!' })
+  const token = res?.userToken?.token
+
+    if (!token) {
+      message.error('登录失败：未获取到 token')
+      return
+    }
+    
     localStorage.setItem('userInfo', JSON.stringify(res))
     router.push('/chat')
-  })
   
 }
 </script>

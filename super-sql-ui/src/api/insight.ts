@@ -16,6 +16,9 @@ export interface InsightParams {
     pageNum: string;
     pageSize: string;
 }
+export interface InsightItemParams {
+    insightId: string;
+}
 
 export interface InsightResponse {
     content: InsightItem[];
@@ -49,6 +52,14 @@ export function fetchInsightList(
     return get<InsightResponse>({
         url: '/api/aibi/home/see/text2Sql/insight/page',
         data: params || {}
+    });
+}
+// 单条查询
+export function fetchInsightItem(
+    params: InsightItemParams
+) {
+    return get<InsightDetail>({
+        url: `/api/aibi/home/see/text2Sql/insight/${params.insightId}`,
     });
 }
 

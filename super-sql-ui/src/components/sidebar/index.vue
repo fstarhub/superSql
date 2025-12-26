@@ -8,7 +8,7 @@
   >
     <div class="sidebar-header">
       <div class="logo-section">
-        <img class="logo" src="@/assets/images/logo.png" alt="SuperSQL"/>
+        <!-- <img class="logo" src="@/assets/images/logo.png" alt="SuperSQL"/> -->
         <span v-if="!collapsed" class="logo-text">SuperSQL</span>
       </div>
     </div>
@@ -88,7 +88,7 @@
               v-for="insight in insightList" 
               :key="insight.id"
               class="insight-item"
-              @click="handleSelectInsight(insight.sqlText, insight.requestChange)"
+              @click="handleSelectInsight(insight.sqlText, insight.requestChange, insight.id)"
             >
               <bar-chart-outlined />
               <span class="insight-title">{{ insight.requestChange }}</span>
@@ -288,13 +288,14 @@ const handleSelectChat = (chatId: string): void => {
   })
 }
 
-const handleSelectInsight = (sqlText: string, requestChange: string): void => {
+const handleSelectInsight = (sqlText: string, requestChange: string, insightId: string): void => {
   // 跳转到洞察详情页面
   router.push({
     path: '/home/insight',
     query: {
       content: encodeURIComponent(sqlText),
-      requestChange: encodeURIComponent(requestChange)
+      requestChange: encodeURIComponent(requestChange),
+      insightId: insightId
     }
   })
 }
@@ -355,7 +356,7 @@ const toggleCollapse = (): void => {
 }
 
 .history-list, .insight-list {
-  max-height: 200px;
+  max-height: 260px;
   overflow-y: auto;
 }
 

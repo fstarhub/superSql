@@ -64,6 +64,7 @@ const router = createRouter({
                     component: () => import("@/views/insight/index.vue"),
                     meta: {
                         requiresAuth: false,
+                        ignoreCache: true
                     },
                 },
             ]

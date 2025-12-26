@@ -57,7 +57,7 @@ service.interceptors.response.use((response) => {
     }
     return response.data;
 }, (error) => {
-    console.log(error)
+    console.log(error, '响应错误')
     //响应错误
     if (error.response && error.response.status) {
         const status = error.response.status

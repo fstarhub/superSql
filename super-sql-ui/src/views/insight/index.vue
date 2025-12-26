@@ -1,32 +1,28 @@
 <template>
   <div class="insight-detail-container">
-    <a-page-header
-      class="insight-header"
-      title="洞察详情"
-      @back="handleBack"
-    >
-      <!-- <template #extra>
-        <a-button @click="handleBack">返回</a-button>
-      </template> -->
-    </a-page-header>
 
     <div class="insight-content">
       <a-row :gutter="16">
         <!-- 左侧内容区域 -->
         <a-col :span="12">
           <a-card title="洞察内容" class="content-card">
-            <div class="text-content" v-html="getMdiText(comeMsg || '暂无内容')"></div>
+            <!-- <div class="text-content" v-html="getMdiText(comeMsg || '暂无内容')"></div> -->
+            <div class="conBox" v-for="(value,index) in insightData?.data" :key="index">
+              <div class="content-item" v-for="(v, key) in value">
+                <div class="item-title">
+                  <span class="item-key">{{key}}:</span>
+                  <span class="item-value">{{v}}</span>
+                </div>
+              </div>
+            </div>
           </a-card>
         </a-col>
 
         <!-- 右侧图表区域 -->
         <a-col :span="12">
           <a-card title="数据可视化" class="chart-card">
-            <div v-if="hasChartData(comeMsg)" class="chart-section">
-              <div class="chart-placeholder">
-                <BarChartOutlined class="chart-icon" />
-                <p>数据可视化图表区域</p>
-                <p class="chart-hint">这里可以展示SQL查询结果的可视化图表</p>
+            <div v-if="insightData?.chart" class="chart-section">
+              <div ref="chartRef" class="chart-placeholder">
               </div>
             </div>
             <div v-else class="no-chart-data">
@@ -38,21 +34,26 @@
       </a-row>
 
       <!-- 原始数据展示 -->
-      <a-card title="原始数据" class="data-card" v-if="insightData?.data">
-        <pre class="raw-data">{{ JSON.stringify(insightData.data, null, 2) }}</pre>
+      <a-card title="sql语句" class="data-card">
+        <!-- <pre class="raw-data">{{ JSON.stringify(insightData.data, null, 2) }}</pre> -->
+         <div class="text-content" v-if="comeMsg">
+          {{ comeMsg }}
+         </div>
+         <div v-else>暂无内容</div>
       </a-card>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { BarChartOutlined } from '@ant-design/icons-vue'
-import { fetchInsightDetail, type InsightDetail } from '@/api/insight'
+import { fetchInsightDetail, type InsightDetail, fetchInsightItem } from '@/api/insight'
 import hljs from 'highlight.js'
 import "highlight.js/styles/vs2015.css";
 import MarkdownIt from 'markdown-it';
+import * as echarts from 'echarts'
 
 // 创建MarkdownIt实例并配置hljs高亮
 const mdi = new MarkdownIt({
@@ -78,14 +79,39 @@ const router = useRouter()
 const comeMsg = ref<string>('')
 const insightData = ref<InsightDetail | null>(null)
 const loading = ref(false)
+const chartRef = ref<HTMLDivElement>()
+let chart: echarts.ECharts | null = null
 
 // 获取洞察详情
-const loadInsightDetail = async (msg: string, requestChange: string) => {
+const createInsight = async (msg: string, requestChange: string) => {
   loading.value = true
   try {
     const res = await fetchInsightDetail({ sqlText: msg, requestChange: requestChange })
-    console.log( '洞察详情:', res)
     insightData.value = res
+    await nextTick() // ⭐ 非常关键
+
+    if (chartRef.value) {
+      chart = echarts.init(chartRef.value)
+      chart.setOption(res.chart, true)
+    }
+  } catch (error) {
+    console.error('获取洞察详情失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+const loadInsightById = async (insightId: string) => {
+  loading.value = true
+  try {
+    const res = await fetchInsightItem({ insightId: insightId })
+    console.log('洞察详情:', res)
+    insightData.value = res
+    await nextTick() // ⭐ 非常关键
+
+    if (chartRef.value) {
+      chart = echarts.init(chartRef.value)
+      chart.setOption(res.chart, true)
+    }
   } catch (error) {
     console.error('获取洞察详情失败:', error)
   } finally {
@@ -138,21 +164,26 @@ const getMdiText = (content?: string) => {
   return mdi.render(codeContent)
 }
 
-// 返回处理
-const handleBack = () => {
-  router.back()
-}
 
 // 初始化
 onMounted(() => {
-  const content = route.query.content as string | undefined
+  const content = route.query.content as string | ''
   const requestChange = route.query.requestChange as string | ''
-  if (content) {
-    comeMsg.value = decodeURIComponent(content)
-    const decodedRequestChange = requestChange ? decodeURIComponent(requestChange) : ''
-    loadInsightDetail(comeMsg.value, decodedRequestChange)
+  const insightId = route.query.insightId as string | undefined
+  comeMsg.value = decodeURIComponent(content)
+  if (insightId) {
+    // 通过insightId获取洞察详情
+    loadInsightById(insightId)
+  } else {
+    if (content) {
+      const decodedRequestChange = requestChange ? decodeURIComponent(requestChange) : ''
+      createInsight(comeMsg.value, decodedRequestChange)
+    }
   }
 })
+// onBeforeUnmount(() => {
+//   chart?.dispose()
+// })
 </script>
 
 <style lang="less" scoped>
@@ -177,8 +208,7 @@ onMounted(() => {
   height: calc(100% - 80px);
   // overflow-y: auto;
 }
-
-.content-card, .chart-card, .data-card {
+.content-card, .chart-card {
   height: 400px;
   margin-bottom: 16px;
   
@@ -216,25 +246,6 @@ onMounted(() => {
 
 .chart-section {
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chart-placeholder {
-  text-align: center;
-  color: #999;
-  
-  .chart-icon {
-    font-size: 48px;
-    margin-bottom: 16px;
-    color: #1890ff;
-  }
-  
-  .chart-hint {
-    font-size: 12px;
-    margin-top: 8px;
-  }
 }
 
 .no-chart-data {
@@ -262,5 +273,28 @@ onMounted(() => {
   word-wrap: break-word;
   max-height: 200px;
   overflow-y: auto;
+}
+.chart-section {
+  width: 100%;
+  height: 100%;
+}
+
+.chart-placeholder {
+  width: 100%;
+  height: 100%;
+}
+.conBox {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f0f0f0;
+}
+.item-key {
+  padding:10px;
+  font-weight: 600;
+}
+.item-value {
+  padding:10px;
 }
 </style>
