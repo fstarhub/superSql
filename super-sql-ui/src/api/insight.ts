@@ -79,7 +79,6 @@ export function updateInsight(
     params: updataInsightParams
 ) {
     return post<InsightDetail>({
-        url: '/api/aibi/home/see/text2Sql/insight/requestChange',
-        data: params || {}
+        url: `/api/aibi/home/see/text2Sql/insight/requestChange?insightId=${params.insightId}&question=${params.question}`,
     });
 }

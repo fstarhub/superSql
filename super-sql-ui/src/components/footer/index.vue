@@ -1,6 +1,6 @@
 <template>
  <a-layout-footer class="footer"
-    >Super SQL ©2025 Created by ChengJie.Guo</a-layout-footer
+    >Super SQL ©2025 Created by beihero</a-layout-footer
   >
 </template>
 
