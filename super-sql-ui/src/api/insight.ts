@@ -45,6 +45,10 @@ export interface InsightDetailParams {
     sqlText: string;
     requestChange: string;
 }
+export interface updataInsightParams {
+    insightId: string;
+    question: string;
+}
 
 export function fetchInsightList(
     params: InsightParams
@@ -68,6 +72,14 @@ export function fetchInsightDetail(
 ) {
     return post<InsightDetail>({
         url: '/api/aibi/home/see/text2Sql/insight/create',
+        data: params || {}
+    });
+}
+export function updateInsight(
+    params: updataInsightParams
+) {
+    return post<InsightDetail>({
+        url: '/api/aibi/home/see/text2Sql/insight/requestChange',
         data: params || {}
     });
 }

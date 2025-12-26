@@ -7,13 +7,18 @@
         <a-col :span="12">
           <a-card title="洞察内容" class="content-card">
             <!-- <div class="text-content" v-html="getMdiText(comeMsg || '暂无内容')"></div> -->
-            <div class="conBox" v-for="(value,index) in insightData?.data" :key="index">
-              <div class="content-item" v-for="(v, key) in value">
-                <div class="item-title">
-                  <span class="item-key">{{key}}:</span>
-                  <span class="item-value">{{v}}</span>
+            <div v-if="insightData?.data.length > 0">
+              <div class="conBox" v-for="(value,index) in insightData?.data" :key="index">
+                <div class="content-item" v-for="(v, key) in value">
+                  <div class="item-title">
+                    <span class="item-key">{{key}}:</span>
+                    <span class="item-value">{{v}}</span>
+                  </div>
                 </div>
               </div>
+            </div>
+            <div v-else class="no-table-data">
+              <div>暂无洞察内容</div>
             </div>
           </a-card>
         </a-col>
@@ -34,13 +39,22 @@
       </a-row>
 
       <!-- 原始数据展示 -->
-      <a-card title="sql语句" class="data-card">
-        <!-- <pre class="raw-data">{{ JSON.stringify(insightData.data, null, 2) }}</pre> -->
+      <!-- <a-card class="data-card">
          <div class="text-content" v-if="comeMsg">
           {{ comeMsg }}
          </div>
          <div v-else>暂无内容</div>
-      </a-card>
+      </a-card> -->
+      <div class="send-area">
+
+        <a-input @pressEnter="handleEnter" :bordered="false" class="send-input" v-model:value.trim="inputText" placeholder="请输入你的问题" :disabled="isLoading">
+          <template #suffix>
+            <a-tooltip :title="isLoading ? '正在处理中...' : '发送消息'">
+              <SendOutlined  @click="send" style="color: #535bf2;font-size: 26px" />
+            </a-tooltip>
+          </template>
+        </a-input>
+      </div>
     </div>
   </div>
 </template>
@@ -48,12 +62,13 @@
 <script lang="ts" setup>
 import { ref, onMounted, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { BarChartOutlined } from '@ant-design/icons-vue'
-import { fetchInsightDetail, type InsightDetail, fetchInsightItem } from '@/api/insight'
+import {SendOutlined, BarChartOutlined } from "@ant-design/icons-vue";
+import { fetchInsightDetail, type InsightDetail, fetchInsightItem, updateInsight } from '@/api/insight'
 import hljs from 'highlight.js'
 import "highlight.js/styles/vs2015.css";
 import MarkdownIt from 'markdown-it';
 import * as echarts from 'echarts'
+const isLoading = ref(false)
 
 // 创建MarkdownIt实例并配置hljs高亮
 const mdi = new MarkdownIt({
@@ -81,12 +96,15 @@ const insightData = ref<InsightDetail | null>(null)
 const loading = ref(false)
 const chartRef = ref<HTMLDivElement>()
 let chart: echarts.ECharts | null = null
+const inputText = ref<string>('')
+const currentInsightId = ref<string>('')
 
 // 获取洞察详情
 const createInsight = async (msg: string, requestChange: string) => {
   loading.value = true
   try {
     const res = await fetchInsightDetail({ sqlText: msg, requestChange: requestChange })
+    currentInsightId.value = res.id
     insightData.value = res
     await nextTick() // ⭐ 非常关键
 
@@ -104,7 +122,6 @@ const loadInsightById = async (insightId: string) => {
   loading.value = true
   try {
     const res = await fetchInsightItem({ insightId: insightId })
-    console.log('洞察详情:', res)
     insightData.value = res
     await nextTick() // ⭐ 非常关键
 
@@ -164,6 +181,35 @@ const getMdiText = (content?: string) => {
   return mdi.render(codeContent)
 }
 
+const handleEnter = (e: { preventDefault: () => void; }) => {
+  e.preventDefault() // 防止默认的表单提交行为
+  send()
+}
+const send = () => {
+  if (inputText.value.trim() === '' || loading.value) {
+    return
+  }
+  handleUpdateInsight(currentInsightId.value, inputText.value)
+  inputText.value = ''
+}
+const handleUpdateInsight = async (insightId: string, inputText: string,) => {
+  loading.value = true
+  try {
+    const res = await updateInsight({ insightId: insightId, question: inputText })
+    insightData.value = res
+    await nextTick() // ⭐ 非常关键
+
+    if (chartRef.value) {
+      chart = echarts.init(chartRef.value)
+      chart.setOption(res.chart, true)
+    }
+  } catch (error) {
+    console.error('更新洞察详情失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
 
 // 初始化
 onMounted(() => {
@@ -173,6 +219,7 @@ onMounted(() => {
   comeMsg.value = decodeURIComponent(content)
   if (insightId) {
     // 通过insightId获取洞察详情
+    currentInsightId.value = insightId
     loadInsightById(insightId)
   } else {
     if (content) {
@@ -209,7 +256,7 @@ onMounted(() => {
   // overflow-y: auto;
 }
 .content-card, .chart-card {
-  height: 400px;
+  height: 450px;
   margin-bottom: 16px;
   
   :deep(.ant-card-body) {
@@ -242,6 +289,14 @@ onMounted(() => {
     background: #000000 !important;
     color: #ffffff !important;
   }
+}
+
+.no-table-data {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
 }
 
 .chart-section {
@@ -296,5 +351,24 @@ onMounted(() => {
 }
 .item-value {
   padding:10px;
+}
+
+.send-area{
+  width: 100%;
+  height: 120px;
+  background: linear-gradient(0deg, #fff, hsla(0, 0%, 100%, .8));
+}
+.send-input{
+  padding: 0 2vw !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  // width: 90%;
+  min-height: 50px;
+  padding: 0 10px 0 0;
+  overflow: hidden;
+  line-height: 50px;
+  border: 1px solid #535bf2;
+  border-radius: 6px;
 }
 </style>
