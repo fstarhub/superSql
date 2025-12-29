@@ -7,11 +7,15 @@
         <a-col :span="12">
           <a-card title="洞察内容" class="content-card">
             <!-- <div class="text-content" v-html="getMdiText(comeMsg || '暂无内容')"></div> -->
+            <div v-if="insightData?.header?.length > 0" class="conHeader">
+              <div v-for="(value,index) in insightData?.header" :key="index" class="content-item">
+                <span class="item-value item-header">{{value}}</span>
+              </div>
+            </div>
             <div v-if="insightData?.data.length > 0">
               <div class="conBox" v-for="(value,index) in insightData?.data" :key="index">
                 <div class="content-item" v-for="(v, key) in value">
                   <div class="item-title">
-                    <span class="item-key">{{key}}:</span>
                     <span class="item-value">{{v}}</span>
                   </div>
                 </div>
@@ -338,6 +342,17 @@ onMounted(() => {
   width: 100%;
   height: 100%;
 }
+.conHeader {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f0f0f0;
+}
+.item-header {
+  font-weight: 700;
+}
+
 .conBox {
   height: 40px;
   display: flex;

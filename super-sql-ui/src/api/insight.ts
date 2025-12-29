@@ -34,6 +34,7 @@ export interface InsightDetail {
     createdDate: number;
     lastModifiedDate: number;
     data: any;
+    header: any;
     chart: any;
     orgId: string;
     orgPath: string;
