@@ -3,7 +3,7 @@
     <div class="welcome-content">
       <div class="header-section">
         <div class="title-section">
-          <h1 class="welcome-title">欢迎使用 SuperSQL 系统</h1>
+          <h1 class="welcome-title">欢迎使用 贝和SQL助手 系统</h1>
           <p class="welcome-description">
             这是一个强大的 SQL 查询和数据分析工具，帮助您更高效地进行数据洞察和对话式查询。
           </p>
@@ -76,22 +76,28 @@ import { MessageOutlined, BarChartOutlined, DatabaseOutlined, AreaChartOutlined 
 import WelcomeLayout from '@/layout/welcome-layout.vue'
 import { useRouter } from 'vue-router'
 import { handleLogin } from '@/api/login'
+import { setToken } from '@/util/auth'
 import { message } from 'ant-design-vue'
 
 const router = useRouter()
 
 const startChat = async () => {
   const res = await handleLogin({ username: 'admin', password: 'Gkbh2021!' })
-  const token = res?.userToken?.token
-
+  
+  if (res.status === 'ok' && res.data) {
+    const token = res.data.userToken?.token
     if (!token) {
       message.error('登录失败：未获取到 token')
       return
     }
     
-    localStorage.setItem('userInfo', JSON.stringify(res))
+    // 保存token和用户信息
+    setToken(token)
+    localStorage.setItem('nvwa-user', JSON.stringify(res.data.userInfo))
     router.push('/chat')
-  
+  } else {
+    message.error('登录失败，请检查账号密码')
+  }
 }
 </script>
 

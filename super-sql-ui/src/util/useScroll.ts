@@ -8,6 +8,7 @@ interface ScrollReturn {
   scrollToBottom: () => Promise<void>
   scrollToTop: () => Promise<void>
   scrollToBottomIfAtBottom: () => Promise<void>
+  smoothScrollToBottom: () => Promise<void>
 }
 
 export function useScroll(): ScrollReturn {
@@ -35,10 +36,22 @@ export function useScroll(): ScrollReturn {
     }
   }
 
+  // 平滑滚动到底部（类似ChatGPT）
+  const smoothScrollToBottom = async () => {
+    await nextTick()
+    if (scrollRef.value) {
+      scrollRef.value.scrollTo({
+        top: scrollRef.value.scrollHeight,
+        behavior: 'smooth'
+      })
+    }
+  }
+
   return {
     scrollRef,
     scrollToBottom,
     scrollToTop,
     scrollToBottomIfAtBottom,
+    smoothScrollToBottom,
   }
 }

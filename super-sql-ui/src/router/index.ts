@@ -10,6 +10,14 @@ const router = createRouter({
     routes: [
         {
             path: '/',
+            name: 'login',
+            component: () => import("@/views/login/Login.vue"),
+            meta: {
+                requiresAuth: false,
+            }
+        },
+        {
+            path: '/welcome',
             name: 'welcome',
             component: () => import("@/layout/welcome-layout.vue"),
             meta: {
@@ -26,14 +34,6 @@ const router = createRouter({
                 }
             ]
         },
-        // {
-        //     path: '/login',
-        //     name: 'login',
-        //     component: () => import("@/views/login/Login.vue"),
-        //     meta: {
-        //         requiresAuth: false,
-        //     }
-        // },
         {
             path: '/home',
             name: 'home',
@@ -65,6 +65,14 @@ const router = createRouter({
                     meta: {
                         requiresAuth: false,
                         ignoreCache: true
+                    },
+                },
+                {
+                    path: 'user-center',
+                    name: 'user-center',
+                    component: () => import("@/views/user-center/index.vue"),
+                    meta: {
+                        requiresAuth: false,
                     },
                 },
             ]

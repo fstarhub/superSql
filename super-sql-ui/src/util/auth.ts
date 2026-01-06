@@ -16,4 +16,8 @@ const clearToken = () => {
   localStorage.removeItem(TOKEN_KEY);
 };
 
-export { isLogin, getToken, setToken, clearToken };
+const removeToken = () => {
+  localStorage.removeItem(TOKEN_KEY);
+};
+
+export { isLogin, getToken, setToken, clearToken, removeToken };

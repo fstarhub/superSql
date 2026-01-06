@@ -24,13 +24,13 @@ export type Response<T> = T & {
 function http<T = any>(
     { url, data, method, headers, onDownloadProgress, signal, beforeRequest, afterRequest }: HttpOption,
 ) {
-    const successHandler = (res: AxiosResponse<Response<T>>) => {
-        return res.data
+    const successHandler = (res: any) => {
+        // 拦截器已经返回了 response.data，所以这里直接返回 res
+        return res
     }
 
     const failHandler = (error: Response<Error>) => {
         afterRequest?.()
-        console.log('error info',error)
         throw error
     }
 

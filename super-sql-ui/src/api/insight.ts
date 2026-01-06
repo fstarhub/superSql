@@ -51,6 +51,15 @@ export interface updataInsightParams {
     question: string;
 }
 
+export interface DeleteInsightParams {
+    insightId: string;
+}
+
+export interface UpdateInsightNameParams {
+    insightId: string;
+    name: string;
+}
+
 export function fetchInsightList(
     params: InsightParams
 ) {
@@ -81,5 +90,23 @@ export function updateInsight(
 ) {
     return post<InsightDetail>({
         url: `/api/aibi/home/see/text2Sql/insight/requestChange?insightId=${params.insightId}&question=${params.question}`,
+    });
+}
+
+// 删除洞察
+export function deleteInsight(
+    params: DeleteInsightParams
+) {
+    return post({
+        url: `/api/aibi/home/see/text2Sql/insight/delete?insightId=${params.insightId}`,
+    });
+}
+
+// 更新洞察名称
+export function updateInsightName(
+    params: UpdateInsightNameParams
+) {
+    return post({
+        url: `/api/aibi/home/see/text2Sql/insight/updateName?insightId=${params.insightId}&name=${params.name}`,
     });
 }

@@ -9,5 +9,5 @@ export function removeDocument(params:any){
 }
 
 export function trainData(params:any){
-    return service.post("/superSql/train",params)
+    return service.post("/beiheSql/train",params)
 }

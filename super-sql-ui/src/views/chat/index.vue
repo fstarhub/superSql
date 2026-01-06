@@ -2,7 +2,6 @@
 import {SendOutlined, UserOutlined, CopyOutlined, EyeOutlined, CloseOutlined} from "@ant-design/icons-vue";
 import {nextTick, onMounted, ref, onBeforeUnmount, watch} from "vue";
 import { useRouter, useRoute } from "vue-router";
-import {fetchChatProcess} from "@/api/chat.ts";
 import {fetchChatRecord} from "@/api/chatRecord.ts";
 import {useScroll} from "@/util/useScroll.ts";
 import MarkdownIt from 'markdown-it'
@@ -11,8 +10,9 @@ import hljs from 'highlight.js';
 import "highlight.js/styles/vs2015.css";
 import { message as antMessage, Modal } from 'ant-design-vue';
 import { eventBus } from '@/util/eventBus';
+import {fetchChatProcess} from "@/api/chat.ts";
 
-const {scrollRef, scrollToBottom, scrollToBottomIfAtBottom} = useScroll()
+const {scrollRef, scrollToBottom, scrollToBottomIfAtBottom, smoothScrollToBottom} = useScroll()
 
 const messages=ref([] as any)
 const blockIndex=ref(0)
@@ -22,6 +22,9 @@ const chatId = ref<string>('') // 对话ID
 const showWelcomeMessage = ref(true) // 控制欢迎语显示状态
 
 let controller = new AbortController()
+let currentAiMessageIndex = -1 // 当前流式输出的AI消息索引
+let isStreaming = false // 是否正在流式输出
+let scrollTimer: NodeJS.Timeout | null = null // 滚动节流定时器
 
 const route = useRoute()
 
@@ -91,14 +94,26 @@ const loadChatRecords = async () => {
   if (!chatId.value) return
   
   try {
+    console.log('=== 加载聊天记录 ===');
+    console.log('chatId:', chatId.value);
+    
     const res = await fetchChatRecord({
       oucAiAppAlias: 'text2Sql_ai_app',
       chatId: chatId.value,
       pageNum: '1',
       pageSize: '20'
     })
-    // 根据新的API响应结构处理数据
-    const records = res.content || []
+    
+    console.log('=== 聊天记录接口返回 ===');
+    console.log('完整返回数据:', res);
+    console.log('res.content:', res.content);
+    console.log('res.data:', (res as any).data);
+    
+    // 处理不同的数据结构
+    const records = res.content || (res as any).data?.content || (res as any).data || []
+    
+    console.log('提取的 records:', records);
+    console.log('records 数量:', records.length);
       
     // 清空当前消息，然后添加历史记录
     messages.value = []
@@ -123,10 +138,13 @@ const loadChatRecords = async () => {
       }
     })
     
+    console.log('更新后的 messages:', messages.value);
+    
     // 隐藏欢迎语，因为现在显示历史记录
     showWelcomeMessage.value = false
   } catch (error) {
-    console.error('加载历史对话记录失败:', error)
+    console.error('=== 加载历史对话记录失败 ===');
+    console.error('错误信息:', error);
     antMessage.error('加载历史对话记录失败')
   }
 }
@@ -167,6 +185,18 @@ onMounted(()=> {
   }
 })
 
+onBeforeUnmount(() => {
+  // 清理滚动定时器
+  if (scrollTimer) {
+    clearTimeout(scrollTimer)
+    scrollTimer = null
+  }
+  // 取消请求
+  if (controller) {
+    controller.abort()
+  }
+})
+
 const router = useRouter()
 
 // 提取代码块内容
@@ -191,18 +221,49 @@ const extractCodeBlocks = (content?: string) => {
   return codeBlocks[0].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
+// 防抖：防止重复点击洞察按钮
+let insightClickTimer: NodeJS.Timeout | null = null
+let isNavigatingToInsight = false
+
 const handleInsightClick = (content: string, question: string): void => {
-  // 从内容中提取SQL代码块
-  const sqlContent = extractCodeBlocks(content)
+  // 如果正在导航中，忽略点击
+  if (isNavigatingToInsight) {
+    console.log('正在导航到洞察页面，忽略重复点击');
+    return
+  }
   
-  // 跳转到洞察详情页面，只传递SQL代码块作为参数
-  router.push({
-    path: '/home/insight',
-    query: {
-      content: encodeURIComponent(sqlContent),
-      requestChange: question
+  // 清除之前的定时器
+  if (insightClickTimer) {
+    clearTimeout(insightClickTimer)
+  }
+  
+  // 设置导航标志
+  isNavigatingToInsight = true
+  
+  // 防抖处理：300ms内只执行一次
+  insightClickTimer = setTimeout(() => {
+    // 从内容中提取SQL代码块
+    const sqlContent = extractCodeBlocks(content)
+    
+    // 将数据存储到 sessionStorage，不通过地址栏传递
+    const insightData = {
+      sqlText: sqlContent,
+      requestChange: question,
+      insightId: '',
+      timestamp: Date.now()
     }
-  })
+    sessionStorage.setItem('insightData', JSON.stringify(insightData))
+    
+    // 只跳转路径，不传参数
+    router.push({
+      path: '/home/insight'
+    }).finally(() => {
+      // 导航完成后重置标志
+      setTimeout(() => {
+        isNavigatingToInsight = false
+      }, 500)
+    })
+  }, 300)
 }
 
 const handleEnter = (e: { preventDefault: () => void; }) => {
@@ -228,7 +289,7 @@ const send = async () => {
   isLoading.value = true
   const data={
     query: inputText,
-    stream: false,
+    stream: true, // 改为流式输出
     oucAiAppAlias: 'text2Sql_ai_app',
     chatId: chatId.value // 添加对话ID参数
   }
@@ -244,103 +305,134 @@ const send = async () => {
     filterText.value = ""
   })
   
+  // 创建AI消息占位符，用于流式更新
+  let accumulatedContent = ''
+  let messageId = ''
+  
+  // 重置流式输出状态
+  if (isStreaming) {
+    // 如果之前有未完成的流式输出，先完成它
+    isStreaming = false
+  }
+  
+  // 添加AI消息占位符
+  const aiMessage = {
+    messageType: 'ai',
+    content: '',
+    id: '',
+    question: inputText,
+    timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+  messages.value.push(aiMessage)
+  currentAiMessageIndex = messages.value.length - 1
+  isStreaming = true
+  accumulatedContent = '' // 重置累积内容
+  messageId = '' // 重置消息ID
+  // 初始滚动到底部
+  nextTick(() => {
+    smoothScrollToBottom()
+  })
+  
   try {
     await fetchChatProcess({
       data,
       signal: controller.signal,
       onDownloadProgress: ({event}) => {
-      const xhr = event.target
-      const {responseText} = xhr
-      
-      // 检查responseText是否有效
-      if (!responseText || responseText === 'undefined') {
-        console.log('responseText为空或undefined，跳过处理')
-        return
-      }
-      
-      try {
-        // 处理以"data:"开头的SSE格式响应
-        let jsonData = responseText
+        const xhr = event.target
+        const {responseText} = xhr
         
-        // 如果响应以"data:"开头，去掉前缀
-        if (responseText.startsWith('data:')) {
-          jsonData = responseText.substring(5) // 去掉"data:"前缀
-        }
-        
-        // 确保jsonData不为空
-        if (!jsonData || jsonData.trim() === '') {
-          console.log('jsonData为空，跳过解析')
+        // 检查responseText是否有效
+        if (!responseText || responseText === 'undefined') {
           return
         }
         
-        // 解析JSON响应
-        const responseData = JSON.parse(jsonData)
-        // 提取content和id
-        if (responseData.data && responseData.data.choices && responseData.data.choices.length > 0) {
-          const contentText = responseData.data.choices[0].message.content
-          const messageId = responseData.data.id
-          
-          // 保存对话ID（如果是第一次对话或新的对话）
-          if (messageId && !chatId.value) {
-            chatId.value = messageId
-            console.log('保存对话ID:', chatId.value)
-          }
-          
-          const content={
-            messageType:'ai',
-            content: contentText,
-            id: messageId,
-            question: inputText,
-            timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-          }
-          
-          messages.value.push(content)
-        }
-      } catch (error) {
-        console.error('解析JSON响应失败:', error)
-        console.log('原始响应文本:', responseText)
-        
-        // 如果解析失败，尝试处理可能的多行SSE数据
+        // 处理SSE流式响应
         if (responseText && typeof responseText === 'string') {
           const lines = responseText.split('\n')
-          let lastValidJson = null
-          let accumulatedContent = ''
-          let messageId = ''
           
           for (const line of lines) {
             const trimmedLine = line.trim()
             
             // 检查是否到达结束标志
-            if (trimmedLine === '[done]') {
-              console.log('检测到结束标志[done]')
-              break
+            if (trimmedLine === '[DONE]' || trimmedLine === '[done]') {
+              console.log('检测到结束标志[DONE]')
+              // 保存对话ID
+              if (messageId && !chatId.value) {
+                chatId.value = messageId
+                console.log('保存对话ID:', chatId.value)
+              }
+              // 更新最终消息
+              if (currentAiMessageIndex >= 0 && currentAiMessageIndex < messages.value.length) {
+                // 确保内容不为空时才更新
+                if (accumulatedContent) {
+                  messages.value[currentAiMessageIndex].content = accumulatedContent
+                }
+                if (messageId) {
+                  messages.value[currentAiMessageIndex].id = messageId
+                }
+                // 确保question字段保留，用于洞察按钮（必须保留）
+                if (!messages.value[currentAiMessageIndex].question && inputText) {
+                  messages.value[currentAiMessageIndex].question = inputText
+                }
+                // 确保时间戳存在
+                if (!messages.value[currentAiMessageIndex].timestamp) {
+                  messages.value[currentAiMessageIndex].timestamp = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                }
+              }
+              isStreaming = false
+              // 回复完成后，平滑滚动到底部
+              nextTick(() => {
+                smoothScrollToBottom()
+              })
+              return
             }
             
-            // 处理以"data:"开头的行
+            // 处理以"data:"开头的SSE格式行
             if (trimmedLine.startsWith('data:')) {
               try {
                 const jsonData = trimmedLine.substring(5).trim()
-                if (jsonData && jsonData !== '') {
-                  const responseData = JSON.parse(jsonData)
-                  
-                  // 检查是否是有效的数据结构
-                  if (responseData.data && responseData.data.choices && responseData.data.choices.length > 0) {
-                    lastValidJson = responseData
+                if (!jsonData || jsonData === '' || jsonData === '[DONE]') {
+                  continue
+                }
+                
+                const responseData = JSON.parse(jsonData)
+                
+                // 适配新的响应结构
+                // {
+                //   "Choices": [{"Delta": {"Content": "查询"}}],
+                //   "Id": "08de480d-290c-4855-8702-47d826cdeaab"
+                // }
+                if (responseData.Choices && Array.isArray(responseData.Choices) && responseData.Choices.length > 0) {
+                  const choice = responseData.Choices[0]
+                  if (choice.Delta && choice.Delta.Content) {
+                    // 累积内容
+                    accumulatedContent += choice.Delta.Content
                     
-                    // 累积内容（如果是流式响应，可能会有多个数据块）
-                    const contentText = responseData.data.choices[0].message.content
-                    if (contentText) {
-                      accumulatedContent += contentText
-                    }
-                    
-                    // 保存消息ID
-                    if (responseData.data.id && !messageId) {
-                      messageId = responseData.data.id
-                      // 保存对话ID（如果是第一次对话或新的对话）
-                      if (messageId && !chatId.value) {
-                        chatId.value = messageId
-                        console.log('保存对话ID:', chatId.value)
+                    // 更新消息内容（流式显示）
+                    if (currentAiMessageIndex >= 0 && currentAiMessageIndex < messages.value.length) {
+                      messages.value[currentAiMessageIndex].content = accumulatedContent
+                      // 确保question字段始终保留（在流式输出过程中也要保留）
+                      if (!messages.value[currentAiMessageIndex].question && inputText) {
+                        messages.value[currentAiMessageIndex].question = inputText
                       }
+                      // 流式输出时，始终自动滚动到底部（类似ChatGPT）
+                      // 使用节流，避免频繁滚动影响性能
+                      if (scrollTimer) {
+                        clearTimeout(scrollTimer)
+                      }
+                      scrollTimer = setTimeout(() => {
+                        nextTick(() => {
+                          smoothScrollToBottom()
+                        })
+                      }, 50) // 每50ms最多滚动一次
+                    }
+                  }
+                  
+                  // 保存消息ID（从第一个响应中获取）
+                  if (responseData.Id && !messageId) {
+                    messageId = responseData.Id
+                    if (currentAiMessageIndex >= 0 && currentAiMessageIndex < messages.value.length) {
+                      messages.value[currentAiMessageIndex].id = messageId
                     }
                   }
                 }
@@ -350,63 +442,49 @@ const send = async () => {
               }
             }
           }
-          
-          // 如果有累积的内容，优先使用累积的内容
-          if (accumulatedContent) {
-            const content={
-              messageType:'ai',
-              content: accumulatedContent,
-              id: messageId || 'unknown',
-              timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-            }
-            
-            messages.value.push(content)
-          } else if (lastValidJson && lastValidJson.data && lastValidJson.data.choices && lastValidJson.data.choices.length > 0) {
-            // 如果没有累积内容，但有一个有效的JSON对象
-            const contentText = lastValidJson.data.choices[0].message.content
-            const finalMessageId = lastValidJson.data.id
-            
-            // 保存对话ID（如果是第一次对话或新的对话）
-            if (finalMessageId && !chatId.value) {
-              chatId.value = finalMessageId
-              console.log('保存对话ID:', chatId.value)
-            }
-            
-            const content={
-              messageType:'ai',
-              content: contentText,
-              id: finalMessageId,
-              timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-            }
-            
-            messages.value.push(content)
-          } else {
-            // 如果所有解析方法都失败，回退到原始显示方式
-            console.log('所有解析方法都失败，显示原始响应')
-            const content={
-              messageType:'ai',
-              content: responseText,
-              timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-            }
-            messages.value.push(content)
-          }
-        } else {
-          // 如果responseText不是字符串
-          console.log('responseText不是字符串，跳过处理')
         }
+      },
+      beforeRequest:()=>{
+        // 请求开始
+      },
+      afterRequest:()=>{
+        console.log("请求完成")
+        isStreaming = false
+        // 确保最终内容已更新
+        if (currentAiMessageIndex >= 0 && currentAiMessageIndex < messages.value.length) {
+          // 确保内容不为空时才更新
+          if (accumulatedContent) {
+            messages.value[currentAiMessageIndex].content = accumulatedContent
+          }
+          if (messageId) {
+            messages.value[currentAiMessageIndex].id = messageId
+          }
+          // 确保question字段保留，用于洞察按钮（必须保留）
+          if (!messages.value[currentAiMessageIndex].question && inputText) {
+            messages.value[currentAiMessageIndex].question = inputText
+          }
+          // 确保时间戳存在
+          if (!messages.value[currentAiMessageIndex].timestamp) {
+            messages.value[currentAiMessageIndex].timestamp = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+          }
+          // 调试日志：检查消息数据
+          console.log('最终消息数据:', {
+            content: messages.value[currentAiMessageIndex].content?.substring(0, 50) + '...',
+            hasQuestion: !!messages.value[currentAiMessageIndex].question,
+            question: messages.value[currentAiMessageIndex].question
+          })
+        }
+        // 保存对话ID
+        if (messageId && !chatId.value) {
+          chatId.value = messageId
+        }
+        // 回复完成后，平滑滚动到底部
+        nextTick(() => {
+          smoothScrollToBottom()
+        })
+        // 重置索引
+        currentAiMessageIndex = -1
       }
-      
-      scrollToBottom()
-      scrollToBottomIfAtBottom()
-    },
-    beforeRequest:()=>{
-      //steamWord.value=true;
-    },
-    afterRequest:()=>{
-      console.log("请求完成")
-      //steamWord.value=false;
-      //endPrint();
-    }
     })
   } catch (error) {
     console.error('请求失败:', error)
@@ -415,7 +493,6 @@ const send = async () => {
     isLoading.value = false
   }
 }
-
 
 </script>
 
@@ -431,7 +508,7 @@ const send = async () => {
        <div v-if="showWelcomeMessage">
          <div class="welcomeClass">
            <div class="welcomeTitle">
-              您好，我是SQL智能助手，请问有什么可以帮您？
+              请输入查询需求
             </div>
          </div>
        </div>
@@ -446,10 +523,10 @@ const send = async () => {
                </template>
              </a-avatar>
              <div class="ai-content-container">
-               <div class="ai-content" v-html="getMdiText(item.content)">
-               </div>
-               <!-- 操作按钮区域 -->
-               <div class="action-buttons" v-if="item.content">
+              <div class="ai-content" v-html="getMdiText(item.content)">
+              </div>
+              <!-- 操作按钮区域 -->
+              <div class="action-buttons" v-if="item.messageType === 'ai' && item.content && item.content.trim().length > 0">
                  <a-tooltip title="复制代码">
                    <a-button 
                      type="text" 
@@ -465,8 +542,9 @@ const send = async () => {
                    <a-button 
                      type="text" 
                      size="small" 
-                     @click="handleInsightClick(item.content, item.question)"
+                     @click="handleInsightClick(item.content, item.question || '')"
                      class="action-btn"
+                     :disabled="!item.content || !item.content.trim()"
                    >
                      <EyeOutlined />
                      洞察
@@ -557,7 +635,27 @@ const send = async () => {
   height: calc(100% - 110px);
   padding:0 80px;
   overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-width: none;
+  scroll-behavior: smooth;
+  
+  // 隐藏滚动条但保持滚动功能
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(83, 91, 242, 0.3);
+    border-radius: 3px;
+    
+    &:hover {
+      background: rgba(83, 91, 242, 0.5);
+    }
+  }
   .welcomeClass {
     text-align: center;
     .welcomeTitle {
@@ -567,49 +665,74 @@ const send = async () => {
   }
   .ai-message{
     //float: left;
-    margin: 10px 0;
+    margin: 16px 0;
     width: 100%;
     display: flex;
     flex-direction: column;
     flex-grow: 1;
     flex-shrink: 1;
+    animation: fadeInUp 0.3s ease-out;
     .ai-content-container{
       display: flex;
       flex-direction: column;
       .ai-content{
         background-color: rgba(83, 91, 242, 0.09);
-        border-radius: 10px;
-        padding: 15px;
+        border-radius: 12px;
+        padding: 16px 18px;
+        line-height: 1.6;
+        transition: all 0.3s ease;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        
+        &:hover {
+          background-color: rgba(83, 91, 242, 0.12);
+        }
+        
         img{
           width: 400px !important;
           height: auto !important;
+          border-radius: 8px;
+          margin: 8px 0;
         }
       }
       // 操作按钮样式
       .action-buttons {
         display: flex;
         gap: 8px;
-        margin-top: 8px;
+        margin-top: 10px;
         justify-content: flex-end;
+        opacity: 1; // 默认显示按钮
+        transition: opacity 0.2s ease;
+        
+        // 悬停时保持显示，可以添加其他效果
+        .ai-message:hover & {
+          opacity: 1;
+        }
+        
         .action-btn {
           display: flex;
           align-items: center;
           gap: 4px;
           color: #535bf2;
-          border: 1px solid #d9d9d9;
+          border: 1px solid #e0e0e0;
           border-radius: 6px;
-          padding: 4px 8px;
-          font-size: 12px;
-          transition: all 0.3s;
+          padding: 6px 12px;
+          font-size: 13px;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          cursor: pointer;
+          background: #fff;
           
           &:hover {
             color: #fff;
             background-color: #535bf2;
             border-color: #535bf2;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(83, 91, 242, 0.3);
           }
           
           &:active {
-            transform: scale(0.95);
+            transform: translateY(0);
+            box-shadow: 0 1px 4px rgba(83, 91, 242, 0.2);
           }
         }
       }
@@ -623,16 +746,28 @@ const send = async () => {
     }
   }
   .you-message{
-    margin: 10px 0;
+    margin: 16px 0;
     //float: right;
     width: 100%;
     display: flex;
     flex-direction: row;
     justify-content: flex-end;
+    animation: fadeInUp 0.3s ease-out;
     .you-content{
-      background-color: rgba(83, 91, 242, 0.09);
-      border-radius: 10px;
-      padding: 15px;
+      background: linear-gradient(135deg, #535bf2 0%, #6c5ce7 100%);
+      color: #fff;
+      border-radius: 12px;
+      padding: 16px 18px;
+      max-width: 80%;
+      line-height: 1.6;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      transition: all 0.3s ease;
+      
+      &:hover {
+        box-shadow: 0 4px 12px rgba(83, 91, 242, 0.3);
+        transform: translateY(-1px);
+      }
     }
   }
   
@@ -674,6 +809,17 @@ const send = async () => {
     40% {
       transform: scale(1);
       opacity: 1;
+    }
+  }
+  
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
   }
 }
@@ -727,12 +873,24 @@ const send = async () => {
   align-items: center;
   justify-content: space-between;
   width: 90%;
-  min-height: 50px;
-  padding: 0 10px 0 0;
+  min-height: 52px;
+  padding: 0 12px 0 0;
   overflow: hidden;
-  line-height: 50px;
-  border: 1px solid #535bf2;
-  border-radius: 6px;
+  line-height: 52px;
+  border: 2px solid #535bf2;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(83, 91, 242, 0.1);
+  
+  &:hover {
+    border-color: #6c5ce7;
+    box-shadow: 0 4px 12px rgba(83, 91, 242, 0.15);
+  }
+  
+  &:focus-within {
+    border-color: #6c5ce7;
+    box-shadow: 0 4px 16px rgba(83, 91, 242, 0.2);
+  }
 }
 
 // 主聊天区域样式

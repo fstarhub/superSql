@@ -23,21 +23,20 @@
 </template>
 
 <script lang="ts" setup>
-import { ref} from 'vue'
+import { ref, computed } from 'vue'
 import Footer from '@/components/footer/index.vue'
 import Menu from '@/components/menu/index.vue'
 import Header from '@/components/header/index.vue'
 import Sidebar from '@/components/sidebar/index.vue'
 import PageLayout from '@/layout/page-layout.vue'
 import { useRouter } from 'vue-router'
-const router = useRouter()
-
+import { useThemeStore } from '@/store/theme'
 import { MenuUnfoldOutlined, MenuFoldOutlined } from '@ant-design/icons-vue'
-import { deepStrictEqual } from 'assert'
-import NoFound from 'ant-design-vue/es/result/noFound'
 
+const router = useRouter()
+const themeStore = useThemeStore()
 const collapsed = ref<boolean>(false)
-var colorConfirm = ref<string>('#f2f2ff')
+const colorConfirm = computed(() => themeStore.getCurrentThemeConfig().backgroundColor)
 
 const rightIsoOpen = ref<boolean>()
 //获得子组件传过来的数据

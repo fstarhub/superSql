@@ -22,3 +22,4 @@ export function fetchChatProcess<T = any>(
         afterRequest:params.afterRequest
     })
 }
+

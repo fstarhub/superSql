@@ -1,6 +1,6 @@
 <template>
   <a-layout-footer class="footer">
-    SuperSQL ©2025
+    贝和SQL助手 ©2025
   </a-layout-footer>
 </template>
 
