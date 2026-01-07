@@ -1,12 +1,18 @@
 <template>
   <div class="insight-detail-container">
+    <div class="insight-query-title">
+      <span class="label">查询标题：</span>
+      <span class="title-text">
+        {{ insightData?.requestChange || comeMsg || '未命名查询' }}
+      </span>
+    </div>
     <!-- Loading 遮罩 -->
     <a-spin :spinning="loading" tip="正在加载洞察数据，请稍候..." :style="{ minHeight: '400px' }">
       <div class="insight-content" v-if="!loading || insightData">
         <a-row :gutter="16">
           <!-- 左侧内容区域 -->
           <a-col :span="12">
-            <a-card title="洞察内容" class="content-card">
+            <a-card title="数据表格" class="content-card">
               <!-- <div class="text-content" v-html="getMdiText(comeMsg || '暂无内容')"></div> -->
               <div v-if="insightData?.header && Array.isArray(insightData.header) && insightData.header.length > 0" class="data-table">
                 <table class="insight-table">
@@ -27,21 +33,21 @@
                 </table>
               </div>
               <div v-else-if="!loading" class="no-table-data">
-                <div>暂无洞察内容</div>
+                <div>暂无数据</div>
               </div>
             </a-card>
           </a-col>
 
           <!-- 右侧图表区域 -->
           <a-col :span="12">
-            <a-card title="数据可视化" class="chart-card">
+            <a-card title="数据图表" class="chart-card">
               <div v-if="insightData?.chart" class="chart-section">
                 <div ref="chartRef" class="chart-placeholder">
                 </div>
               </div>
               <div v-else-if="!loading" class="no-chart-data">
                 <BarChartOutlined class="no-data-icon" />
-                <p>当前内容暂无可视化数据</p>
+                <p>暂无数据</p>
               </div>
             </a-card>
           </a-col>
@@ -446,6 +452,34 @@ onBeforeUnmount(() => {
   background: #fff;
   border-radius: 8px;
   padding: 16px;
+}
+
+.insight-query-title {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  border-left: 4px solid #535bf2;
+  background: #f7f8ff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.insight-query-title .label {
+  color: #666;
+  font-weight: 500;
+}
+
+.insight-query-title .title-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .insight-header {

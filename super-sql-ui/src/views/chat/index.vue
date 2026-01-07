@@ -272,19 +272,20 @@ const handleEnter = (e: { preventDefault: () => void; }) => {
 }
 
 const send = async () => {
+  let lastResponseLength = 0
   // 检查是否正在加载或输入为空
   if (isLoading.value || !filterText.value?.trim()) {
     return
   }
-  
+
   // 如果是第一次发送消息，隐藏欢迎语
   if (showWelcomeMessage.value) {
     showWelcomeMessage.value = false
   }
-  
+
   // 使用nextTick确保DOM更新完成后再清空输入框
   const inputText = filterText.value
-  
+
   // 设置加载状态
   isLoading.value = true
   const data={
@@ -299,22 +300,47 @@ const send = async () => {
   }
   messages.value.push(message)
   scrollToBottom()
-  
+
   // 在DOM更新完成后清空输入框
   nextTick(() => {
     filterText.value = ""
   })
-  
+
   // 创建AI消息占位符，用于流式更新
-  let accumulatedContent = ''
   let messageId = ''
-  
+  let rawBuffer = ''
+  let renderBuffer = ''
+  let isRendering = false
+
+  // 渲染缓冲区模型
+  const startRenderLoop = () => {
+    if (isRendering) return
+    isRendering = true
+
+    const render = () => {
+      if (renderBuffer.length < rawBuffer.length) {
+        // 每帧渲染少量字符，模拟 ChatGPT 连续输出
+        renderBuffer = rawBuffer.slice(0, renderBuffer.length + 4)
+        if (currentAiMessageIndex >= 0 && currentAiMessageIndex < messages.value.length) {
+          messages.value[currentAiMessageIndex].content = renderBuffer
+        }
+
+        // 滚动与渲染绑定，而不是与 SSE 绑定
+        requestAnimationFrame(render)
+      } else {
+        isRendering = false
+      }
+    }
+
+    requestAnimationFrame(render)
+  }
+
   // 重置流式输出状态
   if (isStreaming) {
     // 如果之前有未完成的流式输出，先完成它
     isStreaming = false
   }
-  
+
   // 添加AI消息占位符
   const aiMessage = {
     messageType: 'ai',
@@ -326,13 +352,15 @@ const send = async () => {
   messages.value.push(aiMessage)
   currentAiMessageIndex = messages.value.length - 1
   isStreaming = true
-  accumulatedContent = '' // 重置累积内容
   messageId = '' // 重置消息ID
+  rawBuffer = ''
+  renderBuffer = ''
+  isRendering = false
   // 初始滚动到底部
   nextTick(() => {
     smoothScrollToBottom()
   })
-  
+
   try {
     await fetchChatProcess({
       data,
@@ -340,106 +368,93 @@ const send = async () => {
       onDownloadProgress: ({event}) => {
         const xhr = event.target
         const {responseText} = xhr
-        
+
         // 检查responseText是否有效
         if (!responseText || responseText === 'undefined') {
           return
         }
-        
-        // 处理SSE流式响应
-        if (responseText && typeof responseText === 'string') {
-          const lines = responseText.split('\n')
-          
-          for (const line of lines) {
-            const trimmedLine = line.trim()
-            
-            // 检查是否到达结束标志
-            if (trimmedLine === '[DONE]' || trimmedLine === '[done]') {
-              console.log('检测到结束标志[DONE]')
-              // 保存对话ID
-              if (messageId && !chatId.value) {
-                chatId.value = messageId
-                console.log('保存对话ID:', chatId.value)
-              }
-              // 更新最终消息
-              if (currentAiMessageIndex >= 0 && currentAiMessageIndex < messages.value.length) {
-                // 确保内容不为空时才更新
-                if (accumulatedContent) {
-                  messages.value[currentAiMessageIndex].content = accumulatedContent
-                }
-                if (messageId) {
-                  messages.value[currentAiMessageIndex].id = messageId
-                }
-                // 确保question字段保留，用于洞察按钮（必须保留）
-                if (!messages.value[currentAiMessageIndex].question && inputText) {
-                  messages.value[currentAiMessageIndex].question = inputText
-                }
-                // 确保时间戳存在
-                if (!messages.value[currentAiMessageIndex].timestamp) {
-                  messages.value[currentAiMessageIndex].timestamp = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-                }
-              }
-              isStreaming = false
-              // 回复完成后，平滑滚动到底部
-              nextTick(() => {
-                smoothScrollToBottom()
-              })
-              return
+
+        // 只处理本次新增的流式内容，避免重复解析
+        const newText = responseText.slice(lastResponseLength)
+        lastResponseLength = responseText.length
+
+        if (!newText) {
+          return
+        }
+
+        const lines = newText.split('\n')
+
+        for (const line of lines) {
+          const trimmedLine = line.trim()
+
+          // 检查是否到达结束标志
+          if (trimmedLine === '[DONE]' || trimmedLine === '[done]') {
+            console.log('检测到结束标志[DONE]')
+            // 保存对话ID
+            if (messageId && !chatId.value) {
+              chatId.value = messageId
+              console.log('保存对话ID:', chatId.value)
             }
-            
-            // 处理以"data:"开头的SSE格式行
-            if (trimmedLine.startsWith('data:')) {
-              try {
-                const jsonData = trimmedLine.substring(5).trim()
-                if (!jsonData || jsonData === '' || jsonData === '[DONE]') {
-                  continue
-                }
-                
-                const responseData = JSON.parse(jsonData)
-                
-                // 适配新的响应结构
-                // {
-                //   "Choices": [{"Delta": {"Content": "查询"}}],
-                //   "Id": "08de480d-290c-4855-8702-47d826cdeaab"
-                // }
-                if (responseData.Choices && Array.isArray(responseData.Choices) && responseData.Choices.length > 0) {
-                  const choice = responseData.Choices[0]
-                  if (choice.Delta && choice.Delta.Content) {
-                    // 累积内容
-                    accumulatedContent += choice.Delta.Content
-                    
-                    // 更新消息内容（流式显示）
-                    if (currentAiMessageIndex >= 0 && currentAiMessageIndex < messages.value.length) {
-                      messages.value[currentAiMessageIndex].content = accumulatedContent
-                      // 确保question字段始终保留（在流式输出过程中也要保留）
-                      if (!messages.value[currentAiMessageIndex].question && inputText) {
-                        messages.value[currentAiMessageIndex].question = inputText
-                      }
-                      // 流式输出时，始终自动滚动到底部（类似ChatGPT）
-                      // 使用节流，避免频繁滚动影响性能
-                      if (scrollTimer) {
-                        clearTimeout(scrollTimer)
-                      }
-                      scrollTimer = setTimeout(() => {
-                        nextTick(() => {
-                          smoothScrollToBottom()
-                        })
-                      }, 50) // 每50ms最多滚动一次
-                    }
-                  }
-                  
-                  // 保存消息ID（从第一个响应中获取）
-                  if (responseData.Id && !messageId) {
-                    messageId = responseData.Id
-                    if (currentAiMessageIndex >= 0 && currentAiMessageIndex < messages.value.length) {
-                      messages.value[currentAiMessageIndex].id = messageId
-                    }
-                  }
-                }
-              } catch (e) {
-                // 忽略单行解析错误，继续处理下一行
-                console.log('单行解析失败:', trimmedLine, '错误:', e)
+            // 更新最终消息
+            if (currentAiMessageIndex >= 0 && currentAiMessageIndex < messages.value.length) {
+              // 确保内容不为空时才更新
+              if (rawBuffer) {
+                messages.value[currentAiMessageIndex].content = rawBuffer
               }
+              if (messageId) {
+                messages.value[currentAiMessageIndex].id = messageId
+              }
+              // 确保question字段保留，用于洞察按钮（必须保留）
+              if (!messages.value[currentAiMessageIndex].question && inputText) {
+                messages.value[currentAiMessageIndex].question = inputText
+              }
+              // 确保时间戳存在
+              if (!messages.value[currentAiMessageIndex].timestamp) {
+                messages.value[currentAiMessageIndex].timestamp = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+              }
+            }
+            isStreaming = false
+            // 回复完成后，平滑滚动到底部
+            nextTick(() => {
+              smoothScrollToBottom()
+            })
+            return
+          }
+
+          // 处理以"data:"开头的SSE格式行
+          if (trimmedLine.startsWith('data:')) {
+            try {
+              const jsonData = trimmedLine.substring(5).trim()
+              if (!jsonData || jsonData === '' || jsonData === '[DONE]') {
+                continue
+              }
+
+              const responseData = JSON.parse(jsonData)
+
+              // 适配新的响应结构
+              // {
+              //   "Choices": [{"Delta": {"Content": "查询"}}],
+              //   "Id": "08de480d-290c-4855-8702-47d826cdeaab"
+              // }
+              if (responseData.Choices && Array.isArray(responseData.Choices) && responseData.Choices.length > 0) {
+                const choice = responseData.Choices[0]
+                if (choice.Delta && choice.Delta.Content) {
+                  // 使用渲染缓冲区模型
+                  rawBuffer += choice.Delta.Content
+                  startRenderLoop()
+                }
+
+                // 保存消息ID（从第一个响应中获取）
+                if (responseData.Id && !messageId) {
+                  messageId = responseData.Id
+                  if (currentAiMessageIndex >= 0 && currentAiMessageIndex < messages.value.length) {
+                    messages.value[currentAiMessageIndex].id = messageId
+                  }
+                }
+              }
+            } catch (e) {
+              // 忽略单行解析错误，继续处理下一行
+              console.log('单行解析失败:', trimmedLine, '错误:', e)
             }
           }
         }
@@ -453,8 +468,8 @@ const send = async () => {
         // 确保最终内容已更新
         if (currentAiMessageIndex >= 0 && currentAiMessageIndex < messages.value.length) {
           // 确保内容不为空时才更新
-          if (accumulatedContent) {
-            messages.value[currentAiMessageIndex].content = accumulatedContent
+          if (rawBuffer) {
+            messages.value[currentAiMessageIndex].content = rawBuffer
           }
           if (messageId) {
             messages.value[currentAiMessageIndex].id = messageId

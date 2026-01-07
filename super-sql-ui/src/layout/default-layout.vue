@@ -9,8 +9,6 @@
         <a-layout-header
           :style="{ background: '#ffffff' ,display:'flex'}"
         >
-            <img class="logo" src="../assets/images/beihero.png" alt=""/>
-          <!-- <Menu/> -->
           <Header/>
         </a-layout-header>
         <a-layout-content class="main-other">

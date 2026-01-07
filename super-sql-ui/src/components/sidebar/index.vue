@@ -8,8 +8,7 @@
   >
     <div class="sidebar-header">
       <div class="logo-section">
-        <!-- <img class="logo" src="@/assets/images/logo.png" alt="贝和SQL助手"/> -->
-        <span v-if="!collapsed" class="logo-text">贝和SQL助手</span>
+        <img class="logo" src="@/assets/images/beihero.png" alt="BeiHero Logo" />
       </div>
     </div>
 
@@ -522,11 +521,14 @@ const handleDeleteInsight = async (insightId: string): Promise<void> => {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding: 6px 8px;
 }
 
 .logo {
-  width: 32px;
-  height: 32px;
+  width: 120px;
+  height: 40px;
+  object-fit: contain;
+  display: block;
 }
 
 .logo-text {
