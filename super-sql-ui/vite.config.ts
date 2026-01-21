@@ -6,8 +6,11 @@ const resolve = (p: string) => {
   return path.resolve(__dirname, p);
 }
 
+const BASE_URL = '/ui/sql/'; 
+
 export default({command,mode}:any) => {
   return defineConfig({
+    base: BASE_URL,
     resolve: {
       alias: {
         '@': resolve('./src')

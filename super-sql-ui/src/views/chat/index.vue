@@ -610,7 +610,7 @@ const send = async () => {
       <!-- 发送区域 -->
       <div class="send-area">
 
-        <a-input @pressEnter="handleEnter" :bordered="false" class="send-input" v-model:value.trim="filterText" placeholder="请输入你的问题" :disabled="isLoading">
+        <a-input @pressEnter="handleEnter" :bordered="false" class="send-input" v-model:value.trim="filterText" placeholder="请输入查询需求" :disabled="isLoading">
           <template #suffix>
             <a-tooltip :title="isLoading ? '正在处理中...' : '发送消息'">
               <SendOutlined  @click="send" style="color: #535bf2;font-size: 26px" />
