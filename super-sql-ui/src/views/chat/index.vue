@@ -167,25 +167,58 @@ const resetChat = () => {
   showWelcomeMessage.value = true
 }
 
+// 处理对话切换事件
+const handleChatChanged = (e: Event) => {
+  const customEvent = e as CustomEvent
+  const data = customEvent.detail
+  if (data && data.chatId) {
+    if (chatId.value !== data.chatId) {
+      chatId.value = data.chatId
+      loadChatRecords()
+    }
+  }
+}
+
 onMounted(()=> {
   // 监听新建对话事件
   eventBus.on('new-chat', resetChat)
   
-  // 初始化时检查是否有chatId参数
-  if (route.query.chatId) {
+  // 1. 优先检查 sessionStorage (处理侧边栏点击跳转)
+  const sessionChatData = sessionStorage.getItem('chatData')
+  if (sessionChatData) {
+    try {
+      const data = JSON.parse(sessionChatData)
+      if (data.chatId && data.chatId !== chatId.value) {
+        chatId.value = data.chatId
+        loadChatRecords()
+        // 消费后可以选择清除，也可以保留以备刷新使用
+        // sessionStorage.removeItem('chatData')
+      }
+    } catch (e) {
+      console.error('解析 chatData 失败', e)
+    }
+  }
+  
+  // 2. 检查路由参数 (处理 URL 直接访问)
+  if (!chatId.value && route.query.chatId) {
     chatId.value = route.query.chatId as string
-    // 如果是来自历史对话的跳转，加载历史记录
     if (route.query.from === 'history') {
       loadChatRecords()
     }
   }
   
-  if (showWelcomeMessage.value) {
-    // 欢迎语现在通过模板静态显示
+  // 3. 注册自定义事件监听
+  window.addEventListener('chat-changed', handleChatChanged as EventListener)
+  
+  if (showWelcomeMessage.value && chatId.value) {
+     showWelcomeMessage.value = false
   }
 })
 
 onBeforeUnmount(() => {
+  // 移除事件监听
+  window.removeEventListener('chat-changed', handleChatChanged as EventListener)
+
   // 清理滚动定时器
   if (scrollTimer) {
     clearTimeout(scrollTimer)

@@ -55,7 +55,7 @@
               <span class="history-time">{{ dayjs(chat.createTime).format('YYYY-MM-DD HH:mm:ss') }}</span>
             </div>
             <div v-if="!loading.history && chatHistory.length === 0" class="empty-history">
-              暂无历史对话
+              暂无你的聊天
             </div>
             <div v-if="hasMoreHistory && chatHistory.length > 0" class="load-more-section">
               <a-button 
@@ -167,7 +167,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { 
   PlusOutlined, 
@@ -217,99 +217,86 @@ const editingInsightId = ref<string | null>(null)
 const editingInsightName = ref<string>('')
 const hoveredInsightId = ref<string | null>(null)
 
+// 防止重复请求的请求锁
+const historyRequesting = ref(false)
+const insightRequesting = ref(false)
+
+// 是否已初始化加载过
+const historyInitialized = ref(false)
+const insightInitialized = ref(false)
+
 // 数据获取函数
 const loadChatHistory = async (loadMore = false): Promise<void> => {
-  if (loading.value.history || (!loadMore && !hasMoreHistory.value)) return
-  
+  // 请求锁：防止并发 & 重复触发
+  if (historyRequesting.value) return
+
+  // 非 loadMore 且已初始化过，不再重复请求
+  if (!loadMore && historyInitialized.value) return
+
+  // 没有更多数据时，不再 loadMore
+  if (loadMore && !hasMoreHistory.value) return
+
+  historyRequesting.value = true
   loading.value.history = true
+
   try {
-    console.log('=== 加载历史对话 ===');
-    console.log('请求参数:', chatHistoryParam.value);
-    
     const res = await fetchChatHistory(chatHistoryParam.value)
-    
-    console.log('=== 历史对话接口返回 ===');
-    console.log('完整返回数据:', res);
-    console.log('res.content:', res.content);
-    console.log('res.data:', res.data);
-    
-    // 处理不同的数据结构
     const newItems = res.content || res.data?.content || res.data || []
-    
-    console.log('提取的 newItems:', newItems);
-    console.log('newItems 数量:', newItems.length);
-    
+
     if (loadMore) {
-      // 去重：避免重复数据
       const existingIds = new Set(chatHistory.value.map(item => item.id))
       const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id))
       chatHistory.value.push(...uniqueNewItems)
     } else {
       chatHistory.value = newItems
+      historyInitialized.value = true
     }
-    
-    console.log('更新后的 chatHistory:', chatHistory.value);
-    
-    // 判断是否还有更多数据
-    const pageSize = parseInt(chatHistoryParam.value.pageSize)
-    hasMoreHistory.value = newItems.length >= pageSize
-    
-    // 如果有更多数据，更新页码
-    if (hasMoreHistory.value && loadMore) {
-      chatHistoryParam.value.pageNum = (parseInt(chatHistoryParam.value.pageNum) + 1).toString()
+
+    const pageSize = Number(chatHistoryParam.value.pageSize)
+    hasMoreHistory.value = newItems.length === pageSize
+
+    if (loadMore && hasMoreHistory.value) {
+      chatHistoryParam.value.pageNum = String(Number(chatHistoryParam.value.pageNum) + 1)
     }
-  } catch (error) {
-    console.error('=== 获取历史对话失败 ===');
-    console.error('错误信息:', error);
+  } catch (e) {
+    console.error('获取历史对话失败', e)
   } finally {
+    historyRequesting.value = false
     loading.value.history = false
   }
 }
 
 const loadInsightList = async (loadMore = false): Promise<void> => {
-  if (loading.value.insight || (!loadMore && !hasMoreInsight.value)) return
-  
+  if (insightRequesting.value) return
+  if (!loadMore && insightInitialized.value) return
+  if (loadMore && !hasMoreInsight.value) return
+
+  insightRequesting.value = true
   loading.value.insight = true
+
   try {
-    console.log('=== 加载数据洞察 ===');
-    console.log('请求参数:', insightParam.value);
-    
-    const res = await fetchInsightList(insightParam.value);
-    
-    console.log('=== 数据洞察接口返回 ===');
-    console.log('完整返回数据:', res);
-    console.log('res.content:', res.content);
-    console.log('res.data:', res.data);
-    
-    // 处理不同的数据结构
+    const res = await fetchInsightList(insightParam.value)
     const newItems = res.content || res.data?.content || res.data || []
-    
-    console.log('提取的 newItems:', newItems);
-    console.log('newItems 数量:', newItems.length);
-    
+
     if (loadMore) {
-      // 去重：避免重复数据
       const existingIds = new Set(insightList.value.map(item => item.id))
       const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id))
       insightList.value.push(...uniqueNewItems)
     } else {
       insightList.value = newItems
+      insightInitialized.value = true
     }
-    
-    console.log('更新后的 insightList:', insightList.value);
-    
-    // 判断是否还有更多数据
-    const pageSize = parseInt(insightParam.value.pageSize)
-    hasMoreInsight.value = newItems.length >= pageSize
-    
-    // 如果有更多数据，更新页码
-    if (hasMoreInsight.value && loadMore) {
-      insightParam.value.pageNum = (parseInt(insightParam.value.pageNum) + 1).toString()
+
+    const pageSize = Number(insightParam.value.pageSize)
+    hasMoreInsight.value = newItems.length === pageSize
+
+    if (loadMore && hasMoreInsight.value) {
+      insightParam.value.pageNum = String(Number(insightParam.value.pageNum) + 1)
     }
-  } catch (error) {
-    console.error('=== 获取数据洞察失败 ===');
-    console.error('错误信息:', error);
+  } catch (e) {
+    console.error('获取洞察失败', e)
   } finally {
+    insightRequesting.value = false
     loading.value.insight = false
   }
 }
@@ -331,27 +318,36 @@ const loadMoreInsight = (): void => {
 onMounted(() => {
   loadChatHistory()
   loadInsightList()
-  
+
   // 监听刷新事件
   eventBus.on('refresh-chat-history', () => {
-    // 重置分页参数
     chatHistoryParam.value.pageNum = '1'
     hasMoreHistory.value = true
-    loadChatHistory()
+    historyInitialized.value = false
+    loadChatHistory(false)
   })
-  
+
   eventBus.on('refresh-insight-list', () => {
-    // 重置分页参数
     insightParam.value.pageNum = '1'
     hasMoreInsight.value = true
-    loadInsightList()
+    insightInitialized.value = false
+    loadInsightList(false)
   })
+})
+
+onUnmounted(() => {
+  eventBus.off('refresh-chat-history')
+  eventBus.off('refresh-insight-list')
 })
 
 // 折叠面板变化事件
 const handleCollapseChange = (keys: string[]): void => {
-  // 当面板展开时加载对应数据
-  if (keys.includes('history') && chatHistory.value.length === 0) {
+  // 「你的聊天」：只在未初始化且列表为空时加载，防止折叠误触发重复请求
+  if (
+    keys.includes('history') &&
+    !historyInitialized.value &&
+    chatHistory.value.length === 0
+  ) {
     loadChatHistory()
   }
   if (keys.includes('insight') && insightList.value.length === 0) {
@@ -363,32 +359,52 @@ const handleNewChat = async (): Promise<void> => {
   try {
     // 触发新建对话事件
     eventBus.emit('new-chat')
-    
+
     // 直接导航到聊天页面，不添加新的对话到列表
     activeChatId.value = null
     router.push('/chat')
-    
-    // 刷新历史对话列表
+
+    // 刷新历史对话列表（只在sidebar已初始化后才刷新，避免重复请求）
     setTimeout(() => {
+      // 仅在当前 sidebar 已初始化后才刷新，避免重复请求
+      historyInitialized.value = false
       eventBus.emit('refresh-chat-history')
-    }, 500)
+    }, 300)
   } catch (error) {
     console.error('创建新对话失败:', error)
   }
 }
 
-const handleSelectChat = (chatId: string): void => {
-  // 优化：如果点击的是当前选中的对话，则不进行跳转，避免重复调用接口
-  if (activeChatId.value === chatId) return
+// 防抖：防止重复点击
+let chatClickTimer: NodeJS.Timeout | null = null
 
+const handleSelectChat = (chatId: string): void => {
   activeChatId.value = chatId
-  router.push({
-    path: '/chat',
-    query: { 
-      chatId: chatId,
-      from: 'history'
+
+  if (chatClickTimer) {
+    clearTimeout(chatClickTimer)
+  }
+
+  // 防抖处理：100ms内只执行一次
+  chatClickTimer = setTimeout(() => {
+    const chatData = {
+      chatId,
+      timestamp: Date.now()
     }
-  })
+
+    // 先写入 sessionStorage（兜底）
+    sessionStorage.setItem('chatData', JSON.stringify(chatData))
+
+    if (route.path === '/chat') {
+      // 已在 chat 页面，直接通知
+      window.dispatchEvent(
+        new CustomEvent('chat-changed', { detail: chatData })
+      )
+    } else {
+      // 不在 chat 页面：直接跳转
+      router.push('/chat')
+    }
+  }, 100)
 }
 
 // 防抖：防止重复点击（优化为更短的延迟，允许快速切换）
