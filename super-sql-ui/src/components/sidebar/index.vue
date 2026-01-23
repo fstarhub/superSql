@@ -25,7 +25,7 @@
           <template #icon>
             <plus-outlined />
           </template>
-          <span v-if="!collapsed">新建对话</span>
+          <span v-if="!collapsed">新聊天</span>
         </a-button>
       </div>
 
@@ -37,7 +37,7 @@
         :expand-icon-position="'end'"
         class="sidebar-collapse"
       >
-        <a-collapse-panel key="history" :header="'历史对话'" :show-arrow="!collapsed">
+        <a-collapse-panel key="history" :header="'你的聊天'" :show-arrow="!collapsed">
           <div class="history-list">
             <div v-if="loading.history && !chatHistory.length" class="loading-state">
               <loading-outlined spin />
@@ -378,6 +378,9 @@ const handleNewChat = async (): Promise<void> => {
 }
 
 const handleSelectChat = (chatId: string): void => {
+  // 优化：如果点击的是当前选中的对话，则不进行跳转，避免重复调用接口
+  if (activeChatId.value === chatId) return
+
   activeChatId.value = chatId
   router.push({
     path: '/chat',
