@@ -212,6 +212,14 @@ const extractCodeBlocks = (content?: string) => {
     codeBlocks.push(match[1])
   }
 
+  // 尝试匹配未闭合的代码块（针对流式输出未完成的情况）
+  if (codeBlocks.length === 0) {
+    const unclosedMatch = content.match(/```(?:\w+)?\n([\s\S]*)$/)
+    if (unclosedMatch) {
+      codeBlocks.push(unclosedMatch[1])
+    }
+  }
+
   // 如果没有找到代码块，返回原始内容
   if (codeBlocks.length === 0) {
     return content
@@ -273,6 +281,7 @@ const handleEnter = (e: { preventDefault: () => void; }) => {
 
 const send = async () => {
   let lastResponseLength = 0
+  let lineBuffer = ''
   // 检查是否正在加载或输入为空
   if (isLoading.value || !filterText.value?.trim()) {
     return
@@ -381,8 +390,10 @@ const send = async () => {
         if (!newText) {
           return
         }
-
-        const lines = newText.split('\n')
+        
+        lineBuffer += newText
+        const lines = lineBuffer.split('\n')
+        lineBuffer = lines.pop() || ''
 
         for (const line of lines) {
           const trimmedLine = line.trim()
