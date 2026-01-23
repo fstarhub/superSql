@@ -42,7 +42,13 @@
         :expand-icon-position="'end'"
         class="sidebar-collapse"
       >
-        <a-collapse-panel key="history" :header="'你的聊天'" :show-arrow="!collapsed">
+        <a-collapse-panel key="history" :show-arrow="!collapsed">
+          <template #header>
+            <div class="panel-header" :class="{ 'collapsed': collapsed }">
+              <message-outlined class="header-icon" />
+              <span v-show="!collapsed" class="header-text">你的聊天</span>
+            </div>
+          </template>
           <div class="history-list" @scroll="onHistoryScroll">
             <div v-if="loading.history && !chatHistory.length" class="loading-state">
               <loading-outlined spin />
@@ -72,7 +78,13 @@
         </a-collapse-panel>
 
         <!-- 数据洞察折叠菜单 -->
-        <a-collapse-panel key="insight" :header="'数据洞察'" :show-arrow="!collapsed">
+        <a-collapse-panel key="insight" :show-arrow="!collapsed">
+          <template #header>
+            <div class="panel-header" :class="{ 'collapsed': collapsed }">
+              <fund-outlined class="header-icon" />
+              <span v-show="!collapsed" class="header-text">数据洞察</span>
+            </div>
+          </template>
           <div class="insight-list" @scroll="onInsightScroll">
             <div v-if="loading.insight && !insightList.length" class="loading-state">
               <loading-outlined spin />
@@ -648,6 +660,37 @@ const handleDeleteInsight = async (insightId: string): Promise<void> => {
   }
 }
 
+/* 新增：折叠面板头部自定义样式 */
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(0, 0, 0, 0.85);
+  transition: all 0.3s;
+  
+  /* 展开时：图标和文字与下方的列表项对齐 */
+  /* 列表项 padding: 10px 14px，这里做微调以视觉对齐 */
+  padding-left: 4px;
+
+  &.collapsed {
+    /* 折叠时：居中显示图标，移除左侧 padding */
+    justify-content: center;
+    padding-left: 0;
+  }
+
+  .header-icon {
+    font-size: 16px;
+    /* 确保图标不被压缩 */
+    flex-shrink: 0;
+  }
+
+  .header-text {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+}
+
 .sidebar-collapse {
   background: transparent;
   
@@ -657,6 +700,9 @@ const handleDeleteInsight = async (insightId: string): Promise<void> => {
     .ant-collapse-header {
       padding: 12px 0 !important;
       font-weight: 500;
+      /* 确保头部也是 flex 布局以适应内容 */
+      display: flex;
+      align-items: center;
     }
     
     .ant-collapse-content-box {
