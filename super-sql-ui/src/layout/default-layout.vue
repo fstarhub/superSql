@@ -1,5 +1,5 @@
 <template>
-  <a-layout>
+  <a-layout class="app-layout">
     <!-- 左侧菜单栏 -->
     <Sidebar />
     
@@ -64,6 +64,12 @@ const rightSideFun = (val: boolean) => {
 
 <style lang="less" scoped>
 
+.app-layout {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
 .logo{
   width: 120px;
   height: 31px;
@@ -78,6 +84,9 @@ const rightSideFun = (val: boolean) => {
 }
 .width-000 {
   width: calc(100%) !important;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .main-chat {
@@ -88,6 +97,7 @@ const rightSideFun = (val: boolean) => {
 .main-other {
   margin: 16px 16px 0 16px;
   overflow: auto;
+  flex: 1;
   // height: calc(100% - 110px);
 }
 </style>

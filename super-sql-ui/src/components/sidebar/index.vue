@@ -7,8 +7,14 @@
     :style="{ background: '#fff', boxShadow: '2px 0 8px rgba(0,0,0,0.1)' }"
   >
     <div class="sidebar-header">
-      <div class="logo-section">
-        <img class="logo" src="@/assets/images/beihero.png" alt="BeiHero Logo" />
+      <div class="header-content" :class="{ 'collapsed': collapsed }">
+        <div class="logo-section" v-show="!collapsed">
+          <img class="logo" src="@/assets/images/beihero.png" alt="BeiHero Logo" />
+        </div>
+        <div class="collapse-trigger" @click="toggleCollapse">
+          <menu-unfold-outlined v-if="collapsed" />
+          <menu-fold-outlined v-else />
+        </div>
       </div>
     </div>
 
@@ -30,7 +36,6 @@
       </div>
 
       <!-- 历史对话折叠菜单 -->
-       <!-- @change="handleCollapseChange" -->
       <a-collapse 
         v-model:activeKey="activeKeys" 
         :bordered="false"
@@ -38,7 +43,7 @@
         class="sidebar-collapse"
       >
         <a-collapse-panel key="history" :header="'你的聊天'" :show-arrow="!collapsed">
-          <div class="history-list">
+          <div class="history-list" @scroll="onHistoryScroll">
             <div v-if="loading.history && !chatHistory.length" class="loading-state">
               <loading-outlined spin />
               <span>加载中...</span>
@@ -51,23 +56,14 @@
               :class="{ active: activeChatId === chat.id }"
               @click="handleSelectChat(chat.id)"
             >
-              <span class="history-title">{{ chat.description }}</span>
+              <span class="history-title" :title="chat.description">{{ chat.description }}</span>
               <span class="history-time">{{ dayjs(chat.createTime).format('YYYY-MM-DD HH:mm:ss') }}</span>
             </div>
             <div v-if="!loading.history && chatHistory.length === 0" class="empty-history">
               暂无你的聊天
             </div>
-            <div v-if="hasMoreHistory && chatHistory.length > 0" class="load-more-section">
-              <a-button 
-                type="link" 
-                size="small" 
-                @click="loadMoreHistory"
-                :loading="loading.history"
-                :disabled="loading.history"
-                class="load-more-btn"
-              >
-                {{ loading.history ? '加载中...' : '加载更多' }}
-              </a-button>
+            <div v-if="loading.history && chatHistory.length > 0" class="loading-more">
+               <loading-outlined spin /> <span style="font-size: 12px; margin-left: 5px">加载中...</span>
             </div>
             <div v-if="!hasMoreHistory && chatHistory.length > 0" class="no-more-data">
               <span>没有更多数据了</span>
@@ -77,7 +73,7 @@
 
         <!-- 数据洞察折叠菜单 -->
         <a-collapse-panel key="insight" :header="'数据洞察'" :show-arrow="!collapsed">
-          <div class="insight-list">
+          <div class="insight-list" @scroll="onInsightScroll">
             <div v-if="loading.insight && !insightList.length" class="loading-state">
               <loading-outlined spin />
               <span>加载中...</span>
@@ -107,6 +103,7 @@
               <span 
                 v-else 
                 class="insight-title"
+                :title="insight.requestChange"
                 @click.stop="handleSelectInsight(insight.sqlText, insight.requestChange, insight.id)"
               >
                 {{ insight.requestChange }}
@@ -129,17 +126,8 @@
             <div v-if="!loading.insight && insightList.length === 0" class="empty-insight">
               暂无数据洞察
             </div>
-            <div v-if="hasMoreInsight && insightList.length > 0" class="load-more-section">
-              <a-button 
-                type="link" 
-                size="small" 
-                @click="loadMoreInsight"
-                :loading="loading.insight"
-                :disabled="loading.insight"
-                class="load-more-btn"
-              >
-                {{ loading.insight ? '加载中...' : '加载更多' }}
-              </a-button>
+            <div v-if="loading.insight && insightList.length > 0" class="loading-more">
+               <loading-outlined spin /> <span style="font-size: 12px; margin-left: 5px">加载中...</span>
             </div>
             <div v-if="!hasMoreInsight && insightList.length > 0" class="no-more-data">
               <span>没有更多数据了</span>
@@ -149,20 +137,33 @@
       </a-collapse>
     </div>
 
-    <!-- 折叠按钮 -->
-    <!-- <div class="sidebar-footer">
-      <a-button 
-        type="text" 
-        @click="toggleCollapse"
-        :style="{ width: '100%', border: 'none' }"
+    <!-- 用户中心 (底部) -->
+    <div class="sidebar-footer">
+      <a-dropdown 
+        v-model:open="userMenuVisible"
+        :placement="'topLeft'"
+        :trigger="['click']"
       >
-        <template #icon>
-          <menu-fold-outlined v-if="!collapsed" />
-          <menu-unfold-outlined v-else />
+        <div class="user-trigger" :class="{ 'collapsed': collapsed }">
+          <a-avatar size="small" style="background-color: #535bf2">
+            <template #icon>
+              <UserOutlined />
+            </template>
+          </a-avatar>
+          <span v-if="!collapsed" class="username">个人中心</span>
+        </div>
+        <template #overlay>
+          <a-menu>
+            <a-menu-item @click="handleUserCenter">
+              <UserOutlined /> 个人中心
+            </a-menu-item>
+            <a-menu-item @click="handleLogout">
+              <LoginOutlined style="color: red" /> 退出
+            </a-menu-item>
+          </a-menu>
         </template>
-        <span v-if="!collapsed">收起菜单</span>
-      </a-button>
-    </div> -->
+      </a-dropdown>
+    </div>
   </a-layout-sider>
 </template>
 
@@ -175,13 +176,18 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   LoadingOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  UserOutlined,
+  LoginOutlined,
+  MessageOutlined,
+  FundOutlined
 } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { ChatHistoryParams, fetchChatHistory, type ChatHistoryItem, type ChatHistoryResponse } from '@/api/chatHistory'
 import { fetchInsightList, deleteInsight, updateInsightName, type InsightItem, type InsightResponse } from '@/api/insight'
 import { eventBus } from '@/util/eventBus'
 import { message, Modal } from 'ant-design-vue'
+import { removeToken } from '@/util/auth'
 
 // 类型定义 - 使用API接口的类型
 const router = useRouter()
@@ -216,6 +222,9 @@ const hasMoreInsight = ref(true)
 const editingInsightId = ref<string | null>(null)
 const editingInsightName = ref<string>('')
 const hoveredInsightId = ref<string | null>(null)
+
+// 用户中心状态
+const userMenuVisible = ref(false)
 
 // 防止重复请求的请求锁
 const historyRequesting = ref(false)
@@ -312,6 +321,37 @@ const loadMoreInsight = (): void => {
   if (hasMoreInsight.value && !loading.value.insight) {
     loadInsightList(true)
   }
+}
+
+// 滚动加载监听
+const onHistoryScroll = (e: Event) => {
+  const target = e.target as HTMLElement
+  if (target.scrollTop + target.clientHeight >= target.scrollHeight - 10) {
+    loadMoreHistory()
+  }
+}
+
+const onInsightScroll = (e: Event) => {
+  const target = e.target as HTMLElement
+  if (target.scrollTop + target.clientHeight >= target.scrollHeight - 10) {
+    loadMoreInsight()
+  }
+}
+
+const handleLogout = () => {
+  // 清除token和用户信息
+  removeToken()
+  localStorage.removeItem('nvwa-user')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('satoken')
+  
+  // 跳转到登录页
+  router.push({ path: '/' })
+}
+
+const handleUserCenter = () => {
+  userMenuVisible.value = false
+  router.push({ path: '/home/user-center' })
 }
 
 // 初始化数据
@@ -535,12 +575,21 @@ const handleDeleteInsight = async (insightId: string): Promise<void> => {
   border-bottom: 1px solid #f0f0f0;
 }
 
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  
+  &.collapsed {
+    justify-content: center;
+  }
+}
+
 .logo-section {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  padding: 6px 8px;
 }
 
 .logo {
@@ -550,10 +599,21 @@ const handleDeleteInsight = async (insightId: string): Promise<void> => {
   display: block;
 }
 
-.logo-text {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1890ff;
+.collapse-trigger {
+  cursor: pointer;
+  font-size: 18px;
+  color: #666;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    color: #1890ff;
+    background-color: rgba(0,0,0,0.05);
+  }
 }
 
 .sidebar-content {
@@ -684,6 +744,10 @@ const handleDeleteInsight = async (insightId: string): Promise<void> => {
 .history-title {
   font-size: 14px;
   flex: 1;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .history-time {
@@ -734,7 +798,7 @@ const handleDeleteInsight = async (insightId: string): Promise<void> => {
   }
 }
 
-.loading-state {
+.loading-state, .loading-more {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -744,25 +808,9 @@ const handleDeleteInsight = async (insightId: string): Promise<void> => {
   font-size: 14px;
 }
 
-.load-more-section {
-  text-align: center;
+.loading-more {
   padding: 8px;
-  border-top: 1px solid #f0f0f0;
-  margin-top: 8px;
-}
-
-.load-more-btn {
-  color: #1890ff;
   font-size: 12px;
-  
-  &:hover {
-    color: #40a9ff;
-  }
-  
-  &:disabled {
-    color: #d9d9d9;
-    cursor: not-allowed;
-  }
 }
 
 .no-more-data {
@@ -783,7 +831,32 @@ const handleDeleteInsight = async (insightId: string): Promise<void> => {
 
 .sidebar-footer {
   border-top: 1px solid #f0f0f0;
+  padding: 12px 16px;
+}
+
+.user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    background-color: #f5f7fa;
+  }
+  
+  &.collapsed {
+    justify-content: center;
+    padding: 8px 0;
+  }
+  
+  .username {
+    font-size: 14px;
+    color: #333;
+    font-weight: 500;
+  }
 }
 
 :deep(.ant-layout-sider-children) {
