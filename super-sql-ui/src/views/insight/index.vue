@@ -192,7 +192,7 @@ onBeforeUnmount(() => {
 .insight-detail-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 100px); /* 100px 是针对顶部导航的预留，可根据实际调整 */
+  height: 100%;
   overflow: hidden; 
   background: transparent;
   gap: 12px;

@@ -14,7 +14,6 @@
         <a-layout-content class="main-other">
           <PageLayout />
         </a-layout-content>
-        <Footer />
       </div>
     </a-layout>
   </a-layout>
@@ -22,7 +21,6 @@
 
 <script lang="ts" setup>
 import { ref, computed } from 'vue'
-import Footer from '@/components/footer/index.vue'
 import Menu from '@/components/menu/index.vue'
 import Header from '@/components/header/index.vue'
 import Sidebar from '@/components/sidebar/index.vue'

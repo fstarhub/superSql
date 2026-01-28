@@ -330,7 +330,7 @@
   
   <style scoped lang="less">
   .global-card {
-    height: calc(100vh - 80px); /* 视口高度减去导航栏 */
+    height: 100%;
     margin: 0 !important;
     display: flex;
     flex-direction: column;

@@ -21,7 +21,7 @@
 
 <style scoped lang="less">
 .container{
-
+  height: 100%;
 }
 /* 过度动画 */
 .fade-enter-active {
