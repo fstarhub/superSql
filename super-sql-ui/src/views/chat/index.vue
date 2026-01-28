@@ -352,7 +352,7 @@
     flex: 1; /* 自动撑满剩余空间 */
     min-height: 0; /* 核心：防止 flex 子项溢出 */
     width: 100%;
-    padding: 20px 15%; /* 左右聚拢 15% */
+    padding: 24px 15%; /* 增加垂直内边距 */
     overflow-y: auto; /* 只有这里可以滚动 */
     scrollbar-width: thin;
     scroll-behavior: smooth;
@@ -367,28 +367,48 @@
     }
   
     .ai-message {
-      margin-bottom: 24px;
-      animation: fadeInUp 0.3s;
+      margin-bottom: 28px;
+      animation: fadeInUp 0.3s cubic-bezier(0.2, 0, 0, 1);
       .ai-avatar-box { background: transparent; img { width: 36px; height: 36px; } }
       .ai-content {
-        background-color: #f4f4f7;
-        border-radius: 4px 12px 12px 12px;
-        padding: 12px 16px;
+        background-color: #f9fafb; /* Lighter background */
+        border: 1px solid #eaecf0; /* Subtle border */
+        border-radius: 0 16px 16px 16px; /* Softer radius */
+        padding: 16px 20px;
         line-height: 1.6;
-        color: #333;
+        color: #1f2937; /* Darker text for contrast */
         font-size: 15px;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05); /* Subtle shadow */
       }
       .action-buttons {
-        display: flex; gap: 8px; margin-top: 6px;
-        .action-btn { font-size: 12px; color: #999; height: 24px; padding: 0 8px; background: transparent; border: 1px solid transparent; &:hover { color: #535bf2; background: #f0f0ff; } }
+        display: flex; gap: 8px; margin-top: 8px;
+        .action-btn { 
+          font-size: 13px; /* Slightly larger */
+          color: #6b7280; /* Gray-500 */
+          height: 28px; 
+          padding: 0 10px; 
+          background: transparent; 
+          border: 1px solid transparent; 
+          border-radius: 6px;
+          transition: all 0.2s;
+          &:hover { 
+            color: #535bf2; 
+            background: #eff6ff; 
+          } 
+        }
       }
     }
   
     .you-message {
-      margin-bottom: 24px; display: flex; justify-content: flex-end;
+      margin-bottom: 28px; display: flex; justify-content: flex-end;
       .you-content {
-        background: #535bf2; color: #fff; border-radius: 12px 4px 12px 12px;
-        padding: 12px 16px; font-size: 15px; line-height: 1.6;
+        background: linear-gradient(135deg, #535bf2 0%, #6366f1 100%); /* Gradient for premium feel */
+        color: #fff; 
+        border-radius: 16px 0 16px 16px;
+        padding: 16px 20px; 
+        font-size: 15px; 
+        line-height: 1.6;
+        box-shadow: 0 4px 6px -1px rgba(83, 91, 242, 0.3); /* Colored shadow */
       }
     }
   }
@@ -404,10 +424,15 @@
   
   .send-area-inner {
     display: flex; align-items: flex-end; background: #fff;
-    border-radius: 10px; border: 1px solid #d9d9d9; padding: 8px 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-    transition: all 0.3s;
-    &:focus-within { border-color: #535bf2; box-shadow: 0 4px 16px rgba(83, 91, 242, 0.1); }
+    border-radius: 16px; 
+    border: 1px solid #e5e7eb; /* Stronger initial border */
+    padding: 10px 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    &:focus-within { 
+      border-color: #535bf2; 
+      box-shadow: 0 0 0 4px rgba(83, 91, 242, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.05); /* Glow effect */
+    }
   }
   
   .chat-textarea {

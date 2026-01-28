@@ -101,7 +101,7 @@ let chart: echarts.ECharts | null = null
 const inputText = ref<string>('') // 注意：这里去掉了 trim
 const currentInsightId = ref<string>('')
 
-const getCellValue = (row: any, headerValue: string, colIndex: number): string => {
+const getCellValue = (row: any, headerValue: string, colIndex: number | string): string => {
   if (typeof row === 'object' && row !== null && !Array.isArray(row)) return row[headerValue] || row[colIndex] || ''
   if (Array.isArray(row)) return row[colIndex] || ''
   return ''
@@ -201,15 +201,19 @@ onBeforeUnmount(() => {
 /* 2. 标题栏 */
 .insight-query-title {
   flex-shrink: 0;
-  padding: 12px 16px;
+  padding: 16px 20px; /* More spacing */
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.1), 0 1px 2px rgba(16, 24, 40, 0.06); /* Modern shadow */
   display: flex;
   align-items: center;
   font-size: 15px;
+  border: 1px solid #eaecf0; /* Subtle border */
   .label { color: #535bf2; font-weight: 600; }
-  .title-text { flex: 1; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .title-text { 
+    flex: 1; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; 
+    color: #101828; font-weight: 500;
+  }
 }
 
 /* 3. 中间内容区 */
@@ -242,14 +246,17 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-  border: 1px solid #f0f0f0;
+  border-radius: 12px; /* Consistent radius */
+  box-shadow: 0 4px 6px -2px rgba(16, 24, 40, 0.03), 0 12px 16px -4px rgba(16, 24, 40, 0.08); /* Deep shadow */
+  border: 1px solid #eaecf0; /* Crisp border */
 
   :deep(.ant-card-head) {
     flex-shrink: 0;
-    min-height: 48px;
-    border-bottom: 1px solid #f0f0f0;
+    min-height: 52px;
+    border-bottom: 1px solid #f2f4f7;
+    padding: 0 20px;
+    font-weight: 600;
+    color: #101828;
   }
 
   :deep(.ant-card-body) {
@@ -276,29 +283,29 @@ onBeforeUnmount(() => {
       position: sticky;
       top: 0;
       z-index: 10;
-      background: #f5f7fa;
+      background: #f9fafb; /* Gray-50 header */
       th {
         padding: 12px 16px;
         text-align: left;
         font-weight: 600;
-        color: #333;
-        border-bottom: 1px solid #e8e8e8;
-        border-right: 1px solid #f0f0f0;
+        color: #475467; /* Gray-600 */
+        border-bottom: 1px solid #eaecf0;
+        border-right: 1px solid #eaecf0;
         white-space: nowrap;
       }
     }
 
     tbody td {
-      padding: 10px 16px;
-      color: #555;
-      border-bottom: 1px solid #e8e8e8;
-      border-right: 1px solid #f0f0f0;
+      padding: 12px 16px;
+      color: #344054; /* Gray-700 */
+      border-bottom: 1px solid #eaecf0;
+      border-right: 1px solid #eaecf0;
     }
 
     tr:nth-child(even) { background-color: #fafafa; }
     tr:hover {
-      background-color: #e6f7ff;
-      td { color: #1890ff; }
+      background-color: #f2f4f7; /* Hover gray-100 */
+      td { color: #1d2939; }
     }
   }
 }
@@ -321,16 +328,16 @@ onBeforeUnmount(() => {
 .send-area {
   background: #fff;
   border-radius: 12px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid #eaecf0;
   display: flex;
   align-items: flex-end; /* 按钮对齐输入框底部 */
-  padding: 6px 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  transition: border-color 0.3s;
+  padding: 10px 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05); /* Slight shadow */
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
   &:focus-within {
     border-color: #535bf2;
-    box-shadow: 0 2px 12px rgba(83, 91, 242, 0.1);
+    box-shadow: 0 0 0 4px rgba(83, 91, 242, 0.1), 0 1px 2px rgba(16, 24, 40, 0.05);
   }
 }
 

@@ -59,12 +59,17 @@ body::-webkit-scrollbar {
 }
 /* 滑块样式 */
 ::-webkit-scrollbar-thumb{
-  background-color: #9f9f9f;
+  background-color: #d1d5db; /* Softer gray (Tailwind gray-300) */
   border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af; /* Darker on hover (Tailwind gray-400) */
 }
 /* 滚动条轨道样式 */
 ::-webkit-scrollbar-track{
-  background-color: #fcfcfc;
+  background-color: transparent;
   border-radius: 10px;
 }
 
